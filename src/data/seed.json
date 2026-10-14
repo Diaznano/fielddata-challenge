@@ -1,0 +1,28 @@
+{
+  "farm": {
+    "name": "La Tranquera",
+    "location": "Castelli, Buenos Aires",
+    "lots": [1, 2, 3, 4, 5, 6, 7, 8],
+    "initialStock": {
+      "1": { "vacas": 70, "terneros": 40 },
+      "2": { "vacas": 70, "terneros": 42 },
+      "3": { "vaquillonas": 45 },
+      "4": { "vacas": 70, "terneros": 38 },
+      "5": { "vaquillonas": 40 },
+      "6": { "novillos": 25 },
+      "7": { "toros": 10 },
+      "8": {}
+    }
+  },
+  "rains": [
+    { "daysAgo": 2, "mm": 6 },
+    { "daysAgo": 5, "mm": 22 },
+    { "daysAgo": 11, "mm": 4 },
+    { "daysAgo": 18, "mm": 35 },
+    { "daysAgo": 24, "mm": 12 },
+    { "daysAgo": 31, "mm": 8 },
+    { "daysAgo": 39, "mm": 18 },
+    { "daysAgo": 47, "mm": 3 },
+    { "daysAgo": 55, "mm": 15 }
+  ]
+}
