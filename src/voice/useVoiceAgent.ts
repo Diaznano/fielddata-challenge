@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { AppState, Linking } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 
 import { LLM_ENABLED } from '@/config';
 import { ConversationState, initialConversation, runIntentTurn, runTurn, TurnDeps, TurnOutcome } from '@/conversation/engine';
@@ -14,7 +14,8 @@ import { toISODate } from '@/domain/dates';
 import { EventSource, Farm, Interpreter } from '@/domain/types';
 import { isOnline, subscribeOnline } from '@/platform/network';
 import { Card, CardTone } from '@/tools';
-import { abortListening, MAX_LISTEN_MS, micPermission, requestMic, startListening, stopListening, SttCapabilities, sttCapabilities } from './stt';
+import { offlineVoiceHelp } from './offlineVoiceHelp';
+import { abortListening, downloadSpanishOffline, MAX_LISTEN_MS, micPermission, requestMic, startListening, stopListening, SttCapabilities, sttCapabilities } from './stt';
 import { bestTranscript } from './transcript';
 import { initTts, speak, stopSpeaking } from './tts';
 
@@ -261,6 +262,32 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     }
   }
 
+  function offlineVoiceNotice(): Notice {
+    const { text, canDownload } = offlineVoiceHelp(Number(Platform.Version));
+    if (!canDownload) return { text };
+    return {
+      text,
+      action: {
+        label: 'Descargar',
+        onPress: () => {
+          void downloadSpanishOffline().then(async (ok) => {
+            caps.current = await sttCapabilities();
+            setNotice({ text: ok ? 'Listo. Cuando termine la descarga, la voz funciona sin señal.' : 'No pude descargarlo. Podés seguir escribiendo abajo.' });
+          });
+        },
+      },
+    };
+  }
+
+  // Sin señal, estos errores son el paquete de español sin instalar y hay solución; con señal son otro problema.
+  function sttUnavailable(error: 'network' | 'language-not-supported' | 'service-not-allowed') {
+    closeSession();
+    void isOnline().then((onlineNow) => {
+      if (!onlineNow) setNotice(offlineVoiceNotice());
+      else setNotice({ text: error === 'network' ? NOTICE_NETWORK : NOTICE_NO_SPANISH });
+    });
+  }
+
   // Los listeners nativos y el callback del TTS se registran una vez; leen siempre la versión actual.
   const handlers = useRef({ listen, handleText, sendHeard, noHeard });
   handlers.current = { listen, handleText, sendHeard, noHeard };
@@ -294,13 +321,9 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
         handlers.current.noHeard();
         return;
       case 'network':
-        closeSession();
-        setNotice({ text: NOTICE_NETWORK });
-        return;
       case 'language-not-supported':
       case 'service-not-allowed':
-        closeSession();
-        setNotice({ text: NOTICE_NO_SPANISH });
+        sttUnavailable(event.error);
         return;
       default:
         closeSession();

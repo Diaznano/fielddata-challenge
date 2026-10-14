@@ -37,6 +37,19 @@ export async function sttCapabilities(): Promise<SttCapabilities> {
   }
 }
 
+// No existe modelo on-device para es-AR (solo es-US y es-ES), así que se prueba con esos.
+export async function downloadSpanishOffline(): Promise<boolean> {
+  for (const locale of ['es-US', 'es-ES']) {
+    try {
+      await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale });
+      return true;
+    } catch {
+      // probar el siguiente locale
+    }
+  }
+  return false;
+}
+
 // Con red se usa el reconocedor online (mejor con ruido). Sin red siempre se pide on-device: en Android < 13 la detección de
 // paquetes instalados devuelve listas vacías, pero el pack offline de Google igual se usa. Ahí no existe es-AR (solo es-US y es-ES).
 export function startListening(opts: { online: boolean; onDeviceLocale: string | null }): void {
