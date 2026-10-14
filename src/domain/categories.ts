@@ -16,6 +16,11 @@ const SYNONYMS = new Map<string, Category>([
   ['vaquillonas', 'vaquillonas'],
   ['vaquilla', 'vaquillonas'],
   ['vaquillas', 'vaquillonas'],
+  // El reconocedor de voz de Android oye "vaquillonas" como "bajillonas" o "vajillonas".
+  ['bajillona', 'vaquillonas'],
+  ['bajillonas', 'vaquillonas'],
+  ['vajillona', 'vaquillonas'],
+  ['vajillonas', 'vaquillonas'],
   ['ternero', 'terneros'],
   ['terneros', 'terneros'],
   ['ternera', 'terneros'],

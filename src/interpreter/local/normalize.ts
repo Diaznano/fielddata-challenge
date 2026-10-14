@@ -14,6 +14,8 @@ export function normalize(text: string): string {
     .replace(/([a-z])(\d)/g, '$1 $2')
     .replace(/[^a-z0-9.\s]/g, ' ')
     .replace(/\.(?!\d)/g, ' ')
+    // El reconocedor de voz pega "el lote" en una sola palabra.
+    .replace(/\belote\b/g, 'el lote')
     .replace(/\s+/g, ' ')
     .trim();
 }

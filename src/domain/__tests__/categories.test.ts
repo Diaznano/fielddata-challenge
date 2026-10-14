@@ -9,6 +9,12 @@ describe('categorías', () => {
     expect(categoryFromWord('toro')).toBe('toros');
   });
 
+  it('mapea las variantes que el reconocedor confunde con vaquillonas', () => {
+    for (const word of ['bajillona', 'bajillonas', 'vajillona', 'vajillonas']) {
+      expect(categoryFromWord(word)).toBe('vaquillonas');
+    }
+  });
+
   it('devuelve null para palabras que no son categorías', () => {
     expect(categoryFromWord('perros')).toBeNull();
     expect(categoryFromWord('lote')).toBeNull();

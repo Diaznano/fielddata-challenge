@@ -68,4 +68,6 @@ export const PHRASES: { text: string; expected: Intent | null }[] = [
   { text: 'El viernes próximo pasamos 20 vacas del 1 al 2', expected: mover({ cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 2, fecha: '2026-10-16' }) },
   { text: 'Pasé 40 vaquillonas de 2 dientes del 3 al 5', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 }) },
   { text: 'Mañana a la mañanita pasamos 20 vacas del 1 al 2', expected: mover({ cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 2, fecha: '2026-10-14' }) },
+  { text: '¿Cuántos animales hay en elote 5?', expected: stock({ lote: 5 }) },
+  { text: 'Pasé 40 bajillonas de lote tres al cinco', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 }) },
 ];

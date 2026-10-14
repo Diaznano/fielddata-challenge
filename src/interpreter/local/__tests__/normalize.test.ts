@@ -21,6 +21,18 @@ describe('normalize', () => {
     expect(normalize(input)).toBe(expected);
   });
 
+  it.each([
+    ['¿Cuántos animales hay en elote 5?', 'cuantos animales hay en el lote 5'],
+    ['en Elote5', 'en el lote 5'],
+    ['elote', 'el lote'],
+  ])('"%s" → "%s" ("elote" suelto es "el lote")', (input, expected) => {
+    expect(normalize(input)).toBe(expected);
+  });
+
+  it.each(['melote', 'elotes', 'peloteo', 'choclo elotero'])('no toca "elote" dentro de otra palabra: "%s"', (input) => {
+    expect(normalize(input)).toBe(input);
+  });
+
   it('tokeniza sin vacíos', () => {
     expect(tokenize('  ¿Qué hay?  ')).toEqual(['que', 'hay']);
     expect(tokenize('')).toEqual([]);
