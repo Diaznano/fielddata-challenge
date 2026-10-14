@@ -42,3 +42,5 @@ yarn-error.*
 
 # secretos
 .env
+# builds de módulos nativos locales
+modules/*/android/build/

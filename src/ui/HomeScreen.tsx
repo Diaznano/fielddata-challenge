@@ -8,6 +8,7 @@ import { formatLongDate, toISODate } from '@/domain/dates';
 import { TodaySummary, todaySummary } from '@/domain/summary';
 import { capitalize } from '@/tools/format';
 import { useVoiceAgent } from '@/voice/useVoiceAgent';
+import { useVolumePtt } from '@/voice/useVolumePtt';
 import { History } from './History';
 import { MicButton } from './MicButton';
 import { NoticeBanner } from './NoticeBanner';
@@ -26,6 +27,7 @@ interface Props {
 
 export function HomeScreen({ store, interpret, phrase }: Props) {
   const agent = useVoiceAgent({ store, farm: FARM, interpret, phrase });
+  useVolumePtt(agent.onMicPress);
   const [summary, setSummary] = useState<TodaySummary | null>(null);
   const today = toISODate(new Date());
   const thinking = agent.mic.status === 'thinking';

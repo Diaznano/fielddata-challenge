@@ -41,7 +41,7 @@ export function micReducer(state: MicState, action: MicAction): MicState {
 }
 
 export const MIC_COPY: Record<MicStatus, { label: string; hint: string }> = {
-  idle: { label: 'Tocá y hablá', hint: 'Te escucho hasta que hagas silencio' },
+  idle: { label: 'Tocá y hablá', hint: 'o apretá bajar volumen' },
   listening: { label: 'Escuchando…', hint: 'Tocá para terminar' },
   thinking: { label: 'Pensando…', hint: 'Un segundo' },
   speaking: { label: 'Hablando…', hint: 'Tocá para cortar' },
