@@ -15,7 +15,7 @@ Lo que más pesa:
 - **Nunca se traba.** Cada falla (micrófono, red, LLM, "no entendí", datos faltantes) tiene una salida visible y un camino por texto.
 - **Recorté** el script de evaluación del LLM y las tipografías de marca (detalle más abajo).
 
-Verificación: unos 300 tests unitarios (el parser contra 62 frases rioplatenses) y pruebas en una tablet Android 12 real con voz humana y TTS. La tecla de volumen la verifiqué con eventos de tecla simulados por `adb`; la pulsación física con el equipo en mano es parte de la validación final. No medí precisión del reconocimiento con ruido o viento reales de campo.
+Verificación: 344 tests unitarios (el parser contra 62 frases rioplatenses) y pruebas en una tablet Android 12 real con voz humana y TTS, más un teléfono rugged Zebra TC21 (pantalla chica, Android 10). La tecla física de bajar volumen quedó verificada en el teléfono. No medí precisión del reconocimiento con ruido o viento reales de campo.
 
 ## Stack y por qué
 
@@ -59,6 +59,7 @@ Verificación: unos 300 tests unitarios (el parser contra 62 frases rioplatenses
 - El reconocedor oye "vaquillonas" como "vajillonas" o "bajillonas": alias en el parser (el LLM las entiende solo).
 - En Android 12 `getSupportedLocales` vuelve vacío, así que no se puede detectar el paquete offline. Sin red siempre pido on-device, y **la sugerencia del español offline aparece solo cuando el reconocimiento falla por falta de modelo, no al arrancar** (avisar siempre molestaría en cada inicio de esos teléfonos). En Android 13+ el aviso trae un botón "Descargar" (`es-US` o `es-ES`: no existe modelo on-device `es-AR`). En Android 12 o anterior, una app no puede disparar la descarga, así que el aviso muestra los pasos manuales: Ajustes → Google → Todos los servicios → Ajustes de aplicaciones de Google → Buscador, Asistente y voz → Voz → Reconocimiento de voz sin conexión → Español (EE.UU.). Esa lógica vive en `src/voice/offlineVoiceHelp.ts`, con tests.
 - `contextualStrings` solo se aplica en Android 13+.
+- En un Zebra TC21 (equipo rugged, Android 10, fuera del target 11+) la tecla física de bajar volumen abre el micrófono igual que en la tablet. Ahí tocar para cortar no funciona: Android 10 lanza `SecurityException` dentro de `RecognitionService.stopListening` (bug de la plataforma, corregido en 11). El corte por silencio sí anda.
 
 **Limitación conocida: la voz sin señal depende del reconocedor del teléfono.** En la tablet de prueba (EXO Wave, Android 12) el reconocedor es Speech Services (`com.google.android.tts`), que solo usa los paquetes de idioma de la partición del sistema (solo trae `en-US`) e ignora los que el usuario baja a mano. Ahí la voz en español sin señal no es posible, y el respaldo real es el campo de texto, que se abre solo junto con el aviso. En teléfonos cuyo reconocedor es la app de Google la descarga debería servir, pero no lo verifiqué.
 
@@ -95,6 +96,8 @@ La key de la demo solo lista `gpt-3.5-turbo` y `gpt-4o-mini`, así que los model
 - **Legible al sol:** fondo claro, texto de cuerpo de 20 pt y números de 48 pt. El dorado solo va en bordes e íconos y el texto usa una variante más oscura por contraste.
 - **Repreguntas de un dato por vez** ("¿De qué lote salen?"). La tarjeta queda pendiente, y al terminar el TTS (+300 ms, para no captar su propia voz) se reabre el micrófono. Una respuesta corta ("del 3") completa el intent en las dos vías. Si no hay respuesta, el pendiente vence a los 60 s o lo reemplaza otro pedido.
 - **Pantalla de inicio:** resumen de "hoy" (lluvia de hoy y del mes, última lluvia, cabezas y lotes, movimientos del día) más el historial de lo registrado hoy.
+- **Pantallas chicas (< 720 dp de alto):** probando en un Zebra TC21 (360x640 dp) la tarjeta quedaba fuera de la vista, debajo del resumen. En ese alto el comprobante pasa primero y el resumen de "hoy" baja debajo de la tarjeta; el botón del micrófono baja al 24 % (mínimo 150 dp, sigue siendo grande para guantes), y la tarjeta usa tipografías algo menores. Cada tarjeta nueva lleva la vista arriba. En la tablet el layout no cambia.
+- **Bienvenida, una sola vez:** tres frases para probar y "Empezar", que pide el micrófono explicando para qué (pedirlo sin contexto al primer toque se rechaza más). Si se niega, la app entra igual y ofrece escribir. Ícono y splash con la tranquera en verde marca.
 
 ## Datos
 
