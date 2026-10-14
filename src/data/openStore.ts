@@ -4,7 +4,7 @@ import { buildSeedEvents, SEED_VERSION } from './seed';
 import { SCHEMA, SqliteEventStore } from './sqliteEventStore';
 
 export async function openFarmStore(today: string, nowIso: string, newId: () => string): Promise<EventStore> {
-  const db = await SQLite.openDatabaseAsync('la-tranquera.db');
+  const db = await SQLite.openDatabaseAsync('fielddata.db');
   await db.execAsync(SCHEMA);
   const store = new SqliteEventStore(db);
   const seeded = await db.getFirstAsync<{ value: string }>('SELECT value FROM meta WHERE key = ?', 'seed_version');

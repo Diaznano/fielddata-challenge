@@ -28,10 +28,8 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
   return (
     <View style={styles.screen}>
       <View style={[styles.top, !compact && roomy.top, { paddingTop: insets.top + (compact ? 8 : 24) }]}>
-        <View style={[styles.gate, !compact && roomy.gate]}>
-          <Image source={require('../../assets/tranquera.png')} style={[styles.gateImage, !compact && roomy.gateImage]} />
-        </View>
-        <Text style={[styles.title, !compact && roomy.title]}>La Tranquera</Text>
+        <Image source={require('../../assets/fielddata-isotipo.png')} style={[styles.mark, !compact && roomy.mark]} />
+        <Text style={[styles.title, !compact && roomy.title]}>FieldData</Text>
         <Text style={[styles.tagline, !compact && roomy.tagline]}>Decile lo que pasó en el campo. Lo anota y te deja el comprobante.</Text>
       </View>
       <View style={styles.body}>
@@ -60,9 +58,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   top: { backgroundColor: colors.brand, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 4 },
-  // El PNG es cuadrado y con aire alrededor de la tranquera: se recorta el sobrante vertical.
-  gate: { width: 150, height: 72, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  gateImage: { width: 150, height: 150 },
+  mark: { width: 64, height: 64, marginBottom: 4 },
   title: { fontSize: 32, fontWeight: '900', color: colors.white },
   tagline: { fontSize: 17, color: colors.white, textAlign: 'center', maxWidth: 520 },
   body: { flex: 1, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8 },
@@ -82,8 +78,7 @@ const styles = StyleSheet.create({
 // En pantallas altas (tablet) sobra lugar: se usan los tamaños de texto del resto de la app.
 const roomy = StyleSheet.create({
   top: { paddingBottom: 28, gap: 8 },
-  gate: { width: 210, height: 100 },
-  gateImage: { width: 210, height: 210 },
+  mark: { width: 96, height: 96, marginBottom: 8 },
   title: { fontSize: 40 },
   tagline: { fontSize: fontSize.body },
   inner: { gap: 12 },

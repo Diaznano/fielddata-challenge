@@ -1,8 +1,10 @@
-# La Tranquera
+# FieldData · asistente de campo por voz
 
-Asistente de campo por voz para Android. El productor habla en español rioplatense ("Llovieron 18 mm anoche", "Pasé 40 vaquillonas del lote 3 al 5", "¿Cuánto llovió este mes?"), la app responde en voz alta y muestra un comprobante con los números, no un chat.
+Asistente de campo por voz para Android, hecho como challenge técnico para FieldData (prototipo, no es una app oficial). El productor habla en español rioplatense ("Llovieron 18 mm anoche", "Pasé 40 vaquillonas del lote 3 al 5", "¿Cuánto llovió este mes?"), la app responde en voz alta y muestra un comprobante con los números, no un chat.
 
 Funciona **con y sin señal**: con red interpreta con un LLM (OpenAI) y sin red con un parser local. Las dos vías ejecutan las mismas herramientas sobre una base SQLite en el teléfono.
+
+La app se instala como **FieldData**. *La Tranquera* es el establecimiento de demo que pide la consigna (cría, Castelli, 8 lotes, ~450 cabezas): es el que muestra el encabezado.
 
 Decisiones, trade-offs y uso de IA: [DECISIONS.md](DECISIONS.md). Manual de uso: [docs/manual-usuario.pdf](docs/manual-usuario.pdf). Video explicativo (65 s, vertical): en el [Release](../../releases).
 
@@ -10,7 +12,7 @@ Música del video: «Words We Will Remember» (instrumental), de [Josh Woodward]
 
 ## Instalar el APK
 
-Descargar `la-tranquera-v1.0.0-arm64.apk` del último [Release](../../releases) e instalarlo en un Android 11+ arm64 (permitir "instalar apps desconocidas"; si Play Protect ofrece enviar la app a Google para analizarla, se puede elegir "No enviar"). La primera vez que se toca el micrófono, aceptar el permiso.
+Descargar `fielddata-challenge-v1.0.0-arm64.apk` del último [Release](../../releases) e instalarlo en un Android 11+ arm64 (permitir "instalar apps desconocidas"; si Play Protect ofrece enviar la app a Google para analizarla, se puede elegir "No enviar"). La primera vez que se toca el micrófono, aceptar el permiso.
 
 El APK está firmado con la debug keystore y trae una key de OpenAI dedicada de vida corta. Cuando vence, la app sigue funcionando con el parser local (el badge pasa a `LOCAL`).
 
@@ -23,7 +25,7 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"      # Linux: $HOME/Android/Sdk
 export JAVA_HOME="$(/usr/libexec/java_home -v 17)"   # Linux: ruta de tu JDK 17
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 
-git clone <este repo> && cd la-tranquera
+git clone <este repo> && cd fielddata-challenge
 npm install
 cp .env.example .env     # opcional: sin key funciona en modo local
 npm test                 # tests unitarios (~300)
@@ -45,13 +47,13 @@ Expo Go no sirve: el reconocimiento de voz y la tecla de volumen son módulos na
 ```bash
 npx expo prebuild -p android --clean
 cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a && cd ..
-mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk dist/la-tranquera-v1.0.0-arm64.apk
+mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk dist/fielddata-challenge-v1.0.0-arm64.apk
 ```
 
-Chequeo opcional (`minSdk` ≤ 30, solo `arm64-v8a`, package `com.marianodiaz.latranquera`):
+Chequeo opcional (`minSdk` ≤ 30, solo `arm64-v8a`, package `com.marianodiaz.fielddata`):
 
 ```bash
-$ANDROID_HOME/build-tools/36.0.0/aapt2 dump badging dist/la-tranquera-v1.0.0-arm64.apk | grep -E "sdkVersion|native-code|package:"
+$ANDROID_HOME/build-tools/36.0.0/aapt2 dump badging dist/fielddata-challenge-v1.0.0-arm64.apk | grep -E "sdkVersion|native-code|package:"
 ```
 
 Las variables `EXPO_PUBLIC_*` se embeben al compilar el bundle: si cambiás `.env`, hay que volver a compilar. `android/` es generado y no se commitea.
@@ -90,6 +92,6 @@ modules/volume-ptt  módulo nativo Kotlin que intercepta "bajar volumen"
 
 - **Hablar**: tocar el botón grande o apretar **bajar volumen** (la primera vez empieza a escuchar, la segunda corta). Subir volumen sigue funcionando.
 - **Badge de modo**: `IA` (con red), `SEÑAL DÉBIL` (el LLM falló o tardó y se usó el parser local), `LOCAL` (sin key o key vencida) y `OFFLINE` (sin red).
-- **Datos de demo**: mantener apretado "La Tranquera" (casi 1 segundo) → "Restaurar datos de demo". Vuelve la semilla con las lluvias recalculadas respecto de hoy.
+- **Datos de demo**: mantener apretado el nombre del establecimiento, "La Tranquera" (casi 1 segundo) → "Restaurar datos de demo". Vuelve la semilla con las lluvias recalculadas respecto de hoy.
 - **Voz sin señal**: necesita el paquete de español offline del reconocedor del teléfono. Si falta, la app avisa recién cuando el reconocimiento falla (no al arrancar): en Android 13+ ofrece un botón "Descargar", y en Android 12 o anterior muestra los pasos (Ajustes → Google → … → Voz → Reconocimiento de voz sin conexión → Español (EE.UU.)). Hay equipos cuyo reconocedor (Speech Services) ignora los paquetes bajados a mano y solo usa los del sistema, como la tablet Android 12 de prueba: ahí la voz sin señal no es posible y el respaldo es el campo de texto, que se abre solo con el aviso.
 - **Sin permiso de micrófono**: el campo de texto se abre solo y el botón vuelve a pedir el permiso (o abre Ajustes si Android ya no lo permite).

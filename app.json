@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "FieldData",
-    "slug": "la-tranquera",
+    "slug": "fielddata-challenge",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,7 +17,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.marianodiaz.latranquera",
+      "package": "com.marianodiaz.fielddata",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]

@@ -250,7 +250,7 @@ describe('runTurn', () => {
   it('una respuesta libre del LLM se muestra como ayuda', async () => {
     const { deps } = setup(async () => ({ interpretation: { kind: 'reply', text: 'Puedo anotar lluvias y movimientos.' }, via: 'ia', degraded: false }));
     const out = await runTurn('¿qué podés hacer?', 'voz', initialConversation, deps);
-    expect(out.card).toEqual({ tone: 'ayuda', title: 'La Tranquera', lines: ['Puedo anotar lluvias y movimientos.'] });
+    expect(out.card).toEqual({ tone: 'ayuda', title: 'FieldData', lines: ['Puedo anotar lluvias y movimientos.'] });
     expect(out.speech).toBe('Puedo anotar lluvias y movimientos.');
   });
 

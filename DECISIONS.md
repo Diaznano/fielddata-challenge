@@ -1,6 +1,6 @@
 # Decisiones
 
-Decisiones clave de La Tranquera (challenge Mobile Engineer de FieldData): qué elegí, por qué y qué resigné.
+Decisiones clave de la app FieldData (challenge Mobile Engineer de FieldData): qué elegí, por qué y qué resigné.
 
 ## Resumen
 
@@ -97,7 +97,8 @@ La key de la demo solo lista `gpt-3.5-turbo` y `gpt-4o-mini`, así que los model
 - **Repreguntas de un dato por vez** ("¿De qué lote salen?"). La tarjeta queda pendiente, y al terminar el TTS (+300 ms, para no captar su propia voz) se reabre el micrófono. Una respuesta corta ("del 3") completa el intent en las dos vías. Si no hay respuesta, el pendiente vence a los 60 s o lo reemplaza otro pedido.
 - **Pantalla de inicio:** resumen de "hoy" (lluvia de hoy y del mes, última lluvia, cabezas y lotes, movimientos del día) más el historial de lo registrado hoy.
 - **Pantallas chicas (< 720 dp de alto):** probando en un Zebra TC21 (360x640 dp) la tarjeta quedaba fuera de la vista, debajo del resumen. En ese alto el comprobante pasa primero y el resumen de "hoy" baja debajo de la tarjeta; el botón del micrófono baja al 24 % (mínimo 150 dp, sigue siendo grande para guantes), y la tarjeta usa tipografías algo menores. Cada tarjeta nueva lleva la vista arriba. En la tablet el layout no cambia.
-- **Bienvenida, una sola vez:** tres frases para probar y "Empezar", que pide el micrófono explicando para qué (pedirlo sin contexto al primer toque se rechaza más). Si se niega, la app entra igual y ofrece escribir. Ícono y splash con la tranquera en verde marca.
+- **Bienvenida, una sola vez:** tres frases para probar y "Empezar", que pide el micrófono explicando para qué (pedirlo sin contexto al primer toque se rechaza más). Si se niega, la app entra igual y ofrece escribir. Ícono, splash y bienvenida con el isotipo de FieldData.
+- **La app es FieldData; La Tranquera es el campo.** El producto está pensado para varios establecimientos, así que la marca es la de la app y el encabezado muestra el establecimiento activo (el de demo que pide la consigna). Soportar varios es lo descripto en Escalabilidad (multi-campo); no está construido.
 
 ## Datos
 
