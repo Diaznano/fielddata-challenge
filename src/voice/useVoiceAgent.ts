@@ -11,7 +11,7 @@ import { resolveMode } from '@/conversation/mode';
 import { EventStore } from '@/data/eventStore';
 import { resetDemo as resetDemoData } from '@/data/openStore';
 import { toISODate } from '@/domain/dates';
-import { EventSource, Farm } from '@/domain/types';
+import { EventSource, Farm, Interpreter } from '@/domain/types';
 import { isOnline, subscribeOnline } from '@/platform/network';
 import { Card, CardTone } from '@/tools';
 import { abortListening, MAX_LISTEN_MS, micPermission, requestMic, startListening, stopListening, SttCapabilities, sttCapabilities } from './stt';
@@ -50,6 +50,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   const [notice, setNotice] = useState<Notice | null>(null);
   const [online, setOnline] = useState(true);
   const [lastDegraded, setLastDegraded] = useState(false);
+  const [lastVia, setLastVia] = useState<Interpreter | null>(null);
   const [version, setVersion] = useState(0);
   const conversation = useRef<ConversationState>(initialConversation);
   const caps = useRef<SttCapabilities>({ available: true, onDeviceLocale: null });
@@ -141,10 +142,14 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     });
   }
 
-  function apply(outcome: TurnOutcome, source: EventSource) {
+  // El botón Deshacer no pasa por el intérprete, así que no dice nada del estado del LLM; los turnos sin red tampoco: vuelve a valer el último con red.
+  function apply(outcome: TurnOutcome, source: EventSource, interpreted = true) {
     conversation.current = outcome.state;
     setCard(outcome.card);
-    setLastDegraded(outcome.degraded);
+    if (interpreted) {
+      setLastDegraded(outcome.degraded);
+      setLastVia((previous) => (online ? outcome.via : previous));
+    }
     setVersion((v) => v + 1);
     feedback(outcome.card.tone);
     say(outcome.speech, outcome.expectsReply && source === 'voz');
@@ -180,7 +185,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     setLastUser('Deshacer');
     setPartial('');
     try {
-      apply(await runIntentTurn({ tool: 'deshacer_ultimo', args: {} }, 'Deshacer (botón)', conversation.current, deps), 'texto');
+      apply(await runIntentTurn({ tool: 'deshacer_ultimo', args: {} }, 'Deshacer (botón)', conversation.current, deps), 'texto', false);
     } catch {
       fail();
     } finally {
@@ -202,6 +207,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
       setPartial('');
       setNotice(null);
       setLastDegraded(false);
+      setLastVia(null);
       setVersion((v) => v + 1);
     } catch {
       fail();
@@ -344,7 +350,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     card,
     notice,
     setNotice,
-    mode: resolveMode({ online, llmEnabled: LLM_ENABLED, lastDegraded }),
+    mode: resolveMode({ online, llmEnabled: LLM_ENABLED, lastDegraded, lastVia }),
     version,
     onMicPress,
     submitText: (text: string) => void handleText(text, 'texto'),
