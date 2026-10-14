@@ -22,6 +22,23 @@ describe('lluvias', () => {
     expect(lastRain([], '2026-10-13')).toBeNull();
   });
 
+  it('agrega las lluvias del mismo día en un solo ítem', () => {
+    const r = rainInRange(
+      [rain('a', '2026-10-12', 3), rain('b', '2026-10-12', 4.5), rain('c', '2026-10-10', 2)],
+      { from: '2026-10-01', to: '2026-10-13' },
+    );
+    expect(r.items).toEqual([
+      { date: '2026-10-12', mm: 7.5 },
+      { date: '2026-10-10', mm: 2 },
+    ]);
+    expect(r.totalMm).toBe(9.5);
+  });
+
+  it('suma las lluvias del último día en la última lluvia', () => {
+    const sameDay = [rain('a', '2026-10-12', 3), rain('b', '2026-10-12', 4.5), rain('c', '2026-10-10', 9)];
+    expect(lastRain(sameDay, '2026-10-13')).toEqual({ date: '2026-10-12', mm: 7.5 });
+  });
+
   it('formatea milímetros con coma decimal', () => {
     expect(formatMm(12.5)).toBe('12,5');
     expect(formatMm(18)).toBe('18');

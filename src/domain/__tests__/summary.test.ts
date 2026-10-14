@@ -33,6 +33,24 @@ describe('resumen de hoy', () => {
     ]);
   });
 
+  it('indica el día de la lluvia cuando se registra hoy una de otro día', () => {
+    const events = [
+      rain('r1', '2026-10-12', 20, { recordedAt: at(9, 0) }),
+      rain('r2', '2026-10-13', 5, { recordedAt: at(10, 0) }),
+    ];
+    expect(todaySummary(farm, events, '2026-10-13').records).toEqual([
+      { time: '10:00', text: 'Lluvia 5 mm' },
+      { time: '09:00', text: 'Lluvia 20 mm · ayer' },
+    ]);
+  });
+
+  it('cuenta como de hoy un registro de las 23:30 locales aunque en UTC ya sea mañana', () => {
+    const events = [move('m1', 2, 'vacas', 1, 2, { recordedAt: at(23, 30) })];
+    const s = todaySummary(farm, events, '2026-10-13');
+    expect(s.movesToday).toBe(1);
+    expect(s.records).toEqual([{ time: '23:30', text: '2 vacas · lote 1 → 2' }]);
+  });
+
   it('describe el stock por lote para el prompt del LLM', () => {
     expect(farmSummaryText(farm, [])).toBe('Lote 1: 10 vacas, 4 terneros\nLote 2: vacío');
   });

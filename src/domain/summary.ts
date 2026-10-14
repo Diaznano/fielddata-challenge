@@ -1,5 +1,5 @@
 import { categoryLabel } from './categories';
-import { monthName, periodRange, toISODate } from './dates';
+import { describeDay, monthName, periodRange, toISODate } from './dates';
 import { formatMm, lastRain, rainInRange, RainItem } from './rain';
 import { activeEvents, farmTotal, projectStock } from './stock';
 import { CATEGORIES, Farm, FarmEvent } from './types';
@@ -33,7 +33,7 @@ export function todaySummary(farm: Farm, events: FarmEvent[], today: string): To
     time: localTime(e.recordedAt),
     text:
       e.type === 'lluvia'
-        ? `Lluvia ${formatMm(e.payload.mm)} mm`
+        ? `Lluvia ${formatMm(e.payload.mm)} mm${e.occurredOn === today ? '' : ` · ${describeDay(e.occurredOn, today)}`}`
         : `${e.payload.count} ${categoryLabel(e.payload.category, e.payload.count)} · lote ${e.payload.fromLot} → ${e.payload.toLot}`,
   }));
   return {
