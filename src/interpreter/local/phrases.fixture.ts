@@ -1,0 +1,49 @@
+import { Intent } from '@/tools/schemas';
+
+export const FIXTURE_TODAY = '2026-10-13';
+
+const mover = (args: Extract<Intent, { tool: 'mover_animales' }>['args']): Intent => ({ tool: 'mover_animales', args });
+const lluvia = (args: Extract<Intent, { tool: 'registrar_lluvia' }>['args']): Intent => ({ tool: 'registrar_lluvia', args });
+const consultaLluvia = (args: Extract<Intent, { tool: 'consultar_lluvia' }>['args']): Intent => ({ tool: 'consultar_lluvia', args });
+const stock = (args: Extract<Intent, { tool: 'consultar_stock' }>['args']): Intent => ({ tool: 'consultar_stock', args });
+const deshacer: Intent = { tool: 'deshacer_ultimo', args: {} };
+
+export const PHRASES: { text: string; expected: Intent | null }[] = [
+  { text: 'Llovieron 18 mm anoche', expected: lluvia({ mm: 18, fecha: '2026-10-12' }) },
+  { text: 'llovieron dieciocho milímetros anoche', expected: lluvia({ mm: 18, fecha: '2026-10-12' }) },
+  { text: 'Cayeron 25 milímetros', expected: lluvia({ mm: 25 }) },
+  { text: 'Cayó agua, 12,5 mm hoy', expected: lluvia({ mm: 12.5, fecha: '2026-10-13' }) },
+  { text: 'Anotá una lluvia de treinta milímetros ayer', expected: lluvia({ mm: 30, fecha: '2026-10-12' }) },
+  { text: 'Llovieron 40 anteayer', expected: lluvia({ mm: 40, fecha: '2026-10-11' }) },
+  { text: 'Registrá 8 milímetros', expected: lluvia({ mm: 8 }) },
+  { text: 'Llovieron anoche', expected: lluvia({ fecha: '2026-10-12' }) },
+  { text: 'Pasé 40 vaquillonas del lote 3 al 5', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 }) },
+  { text: 'pasamos cuarenta vaquillas del tres al cinco', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 }) },
+  { text: 'Moví 20 vacas del lote 1 al lote 8', expected: mover({ cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 8 }) },
+  { text: 'Llevé los toros del 7 al 6', expected: mover({ cantidad: 'todas', categoria: 'toros', lote_origen: 7, lote_destino: 6 }) },
+  { text: 'Pasé todas las vaquillonas del 5 al 3', expected: mover({ cantidad: 'todas', categoria: 'vaquillonas', lote_origen: 5, lote_destino: 3 }) },
+  { text: 'Mandamos 15 novillos al lote 4 desde el 6', expected: mover({ cantidad: 15, categoria: 'novillos', lote_origen: 6, lote_destino: 4 }) },
+  { text: 'Pasé 10 terneras del uno al dos', expected: mover({ cantidad: 10, categoria: 'terneros', lote_origen: 1, lote_destino: 2 }) },
+  { text: 'Cambiamos 5 toros al lote 6 del lote 7', expected: mover({ cantidad: 5, categoria: 'toros', lote_origen: 7, lote_destino: 6 }) },
+  { text: 'Ayer pasamos 12 vacas del 2 al 4', expected: mover({ cantidad: 12, categoria: 'vacas', lote_origen: 2, lote_destino: 4, fecha: '2026-10-12' }) },
+  { text: 'Pasé 40 vaquillonas al 5', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_destino: 5 }) },
+  { text: '¿Cuánto llovió este mes?', expected: consultaLluvia({ periodo: 'mes' }) },
+  { text: 'cuánta agua cayó en el mes', expected: consultaLluvia({ periodo: 'mes' }) },
+  { text: '¿Cuánto llovió el mes pasado?', expected: consultaLluvia({ periodo: 'mes_anterior' }) },
+  { text: '¿Cuánto llovió en los últimos 10 días?', expected: consultaLluvia({ periodo: 'ultimos_dias', dias: 10 }) },
+  { text: '¿Cuánto llovió esta semana?', expected: consultaLluvia({ periodo: 'semana' }) },
+  { text: '¿Llovió ayer?', expected: consultaLluvia({ periodo: 'ayer' }) },
+  { text: '¿Cuánto llovió hoy?', expected: consultaLluvia({ periodo: 'hoy' }) },
+  { text: '¿Llovió más de 20 mm esta semana?', expected: consultaLluvia({ periodo: 'semana' }) },
+  { text: '¿Cuántos animales hay en el lote 5?', expected: stock({ lote: 5 }) },
+  { text: 'cuántas cabezas hay en el lote tres', expected: stock({ lote: 3 }) },
+  { text: '¿Qué hay en el 7?', expected: stock({ lote: 7 }) },
+  { text: '¿Cuántas vaquillonas hay?', expected: stock({ categoria: 'vaquillonas' }) },
+  { text: '¿Cuántos terneros hay en el lote 1?', expected: stock({ lote: 1, categoria: 'terneros' }) },
+  { text: '¿Cuántos animales tengo?', expected: stock({}) },
+  { text: 'Borrá eso', expected: deshacer },
+  { text: 'me equivoqué, deshacé lo último', expected: deshacer },
+  { text: 'hola, ¿cómo andás?', expected: null },
+  { text: 'mañana va a llover', expected: null },
+  { text: 'el tractor está roto', expected: null },
+];
