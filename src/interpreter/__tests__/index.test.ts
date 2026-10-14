@@ -26,6 +26,24 @@ describe('createInterpreter', () => {
     expect(onLlmError).toHaveBeenCalled();
   });
 
+  it.each([401, 403])('con HTTP %i la key no sirve: ese turno es local, sin degradar, y los siguientes no llaman a la API', async (status) => {
+    const onLlmError = jest.fn();
+    const rejected = jest.fn(async () => ({ ok: false, status, json: async () => ({}) })) as unknown as typeof fetch;
+    const interpret = createInterpreter({ llm: { apiKey: 'k', model: 'm', fetchImpl: rejected }, isOnline: async () => true, farm: FARM, onLlmError });
+    await expect(interpret(req)).resolves.toMatchObject({ via: 'local', degraded: false });
+    await expect(interpret(req)).resolves.toMatchObject({ via: 'local', degraded: false });
+    expect(rejected).toHaveBeenCalledTimes(1);
+    expect(onLlmError).toHaveBeenCalledTimes(1);
+  });
+
+  it('un 500 no apaga el LLM: el turno siguiente vuelve a intentarlo', async () => {
+    const failing = jest.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })) as unknown as typeof fetch;
+    const interpret = createInterpreter({ llm: { apiKey: 'k', model: 'm', fetchImpl: failing }, isOnline: async () => true, farm: FARM });
+    await interpret(req);
+    await interpret(req);
+    expect(failing).toHaveBeenCalledTimes(2);
+  });
+
   it('sin configuración de LLM siempre es local', async () => {
     const interpret = createInterpreter({ llm: null, isOnline: async () => true, farm: FARM });
     await expect(interpret(req)).resolves.toMatchObject({ via: 'local', degraded: false });

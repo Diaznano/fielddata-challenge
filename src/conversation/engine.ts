@@ -90,6 +90,13 @@ async function phraseOrNull(phrase: NonNullable<TurnDeps['phrase']>, userText: s
   }
 }
 
+// El LLM puede mandar confirmado:true en cualquier turno; solo vale como respuesta a la pregunta de confirmación vigente.
+function withoutUnaskedConfirmation(intent: Intent, pending: Pending | null): Intent {
+  if (intent.tool !== 'registrar_lluvia' || !intent.args.confirmado || pending?.missing === 'confirmacion') return intent;
+  const { confirmado: _confirmado, ...args } = intent.args;
+  return { tool: intent.tool, args };
+}
+
 async function execute(intent: Intent, source: EventSource, state: ConversationState, deps: TurnDeps, meta: TurnMeta, events: FarmEvent[], now: Date): Promise<TurnOutcome> {
   const result = runTool(intent, {
     farm: deps.farm,
@@ -102,7 +109,8 @@ async function execute(intent: Intent, source: EventSource, state: ConversationS
   if (result.status === 'needs_info') {
     return reply(state, meta, result.card, result.question, { intent: result.partial, missing: result.missing, createdAt: now.getTime() }, true);
   }
-  const phrased = meta.via === 'ia' && deps.phrase ? await phraseOrNull(deps.phrase, meta.text, result) : null;
+  // Los rechazos van siempre con la plantilla: una redacción no puede sonar a confirmación de algo que no se guardó.
+  const phrased = result.status === 'ok' && meta.via === 'ia' && deps.phrase ? await phraseOrNull(deps.phrase, meta.text, result) : null;
   if (result.status === 'ok' && result.newEvents.length > 0) await deps.store.append(result.newEvents);
   return reply(state, meta, result.card, phrased ?? result.speech, null);
 }
@@ -112,7 +120,9 @@ export async function runTurn(text: string, source: EventSource, state: Conversa
   const today = toISODate(now);
   const pending = activePending(state, now);
   const events = await deps.store.list();
-  const { interpretation, via, degraded } = await deps.interpret({ text, pending, history: state.history, today, events });
+  // Con el pendiente vencido el historial sigue mostrando su pregunta y el LLM lo reconstruiría.
+  const history = state.pending && !pending ? [] : state.history;
+  const { interpretation, via, degraded } = await deps.interpret({ text, pending, history, today, events });
   const meta: TurnMeta = { text, via, degraded };
 
   switch (interpretation.kind) {
@@ -129,8 +139,8 @@ export async function runTurn(text: string, source: EventSource, state: Conversa
     case 'reply':
       return reply(state, meta, { tone: 'ayuda', title: 'La Tranquera', lines: [interpretation.text] }, interpretation.text, pending);
     case 'intent': {
-      const intent = pending ? mergeIntent(pending.intent, interpretation.intent) : interpretation.intent;
-      return execute(intent, source, state, deps, meta, events, now);
+      const merged = pending ? mergeIntent(pending.intent, interpretation.intent) : interpretation.intent;
+      return execute(withoutUnaskedConfirmation(merged, pending), source, state, deps, meta, events, now);
     }
   }
 }

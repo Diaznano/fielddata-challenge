@@ -12,7 +12,11 @@ export interface LlmConfig {
   fetchImpl?: typeof fetch;
 }
 
-export class LlmError extends Error {}
+export class LlmError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
+}
 
 export function toolDefinitions(): object[] {
   const tools = (Object.keys(toolSchemas) as ToolName[]).map((name) => {
@@ -58,7 +62,7 @@ async function post(body: Record<string, unknown>, cfg: LlmConfig, timeoutMs: nu
       body: JSON.stringify({ model: cfg.model, ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}), ...body }),
       signal: controller.signal,
     });
-    if (!res.ok) throw new LlmError(`HTTP ${res.status}`);
+    if (!res.ok) throw new LlmError(`HTTP ${res.status}`, res.status);
     return await res.json();
   } catch (e) {
     if (e instanceof LlmError) throw e;
@@ -85,7 +89,8 @@ export async function interpretWithLlm(req: InterpretRequest & { farmSummary: st
     } catch {
       throw new LlmError('argumentos no son JSON');
     }
-    const intent = parseIntent(call.function?.name ?? '', cleanArgs((args ?? {}) as Record<string, unknown>));
+    if (args === null || typeof args !== 'object' || Array.isArray(args)) throw new LlmError('argumentos no son un objeto');
+    const intent = parseIntent(call.function?.name ?? '', cleanArgs(args as Record<string, unknown>));
     if (!intent) throw new LlmError(`tool call inválido: ${call.function?.name}`);
     return { kind: 'intent', intent };
   }

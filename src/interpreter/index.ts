@@ -1,7 +1,7 @@
 import { InterpretOutcome, InterpretRequest } from '@/conversation/engine';
 import { farmSummaryText } from '@/domain/summary';
 import { Farm } from '@/domain/types';
-import { interpretWithLlm, LlmConfig } from './llm';
+import { interpretWithLlm, LlmConfig, LlmError } from './llm';
 import { parseLocal } from './local/parser';
 
 export async function interpretLocally(req: InterpretRequest): Promise<InterpretOutcome> {
@@ -17,13 +17,19 @@ interface InterpreterDeps {
 }
 
 export function createInterpreter(deps: InterpreterDeps) {
+  // Una key vencida o sin acceso no se arregla reintentando: cada turno pagaría la ida y vuelta fallida.
+  let keyRejected = false;
   return async (req: InterpretRequest): Promise<InterpretOutcome> => {
-    if (!deps.llm || !(await deps.isOnline())) return interpretLocally(req);
+    if (!deps.llm || keyRejected || !(await deps.isOnline())) return interpretLocally(req);
     try {
       const interpretation = await interpretWithLlm({ ...req, farmSummary: farmSummaryText(deps.farm, req.events) }, deps.llm, deps.timeoutMs);
       return { interpretation, via: 'ia', degraded: false };
     } catch (error) {
       deps.onLlmError?.(error);
+      if (error instanceof LlmError && (error.status === 401 || error.status === 403)) {
+        keyRejected = true;
+        return interpretLocally(req);
+      }
       return { ...(await interpretLocally(req)), degraded: true };
     }
   };

@@ -1,3 +1,4 @@
+import { InterpretRequest } from '@/conversation/engine';
 import { ToolResult } from '@/tools';
 import { interpretWithLlm, LlmConfig, LlmError, phraseWithLlm, systemPrompt, toolDefinitions } from '../llm';
 
@@ -59,6 +60,50 @@ describe('interpretWithLlm', () => {
   it('corta por timeout', async () => {
     await expect(interpretWithLlm(req, cfg(hangingFetch), 20)).rejects.toThrow('timeout');
   });
+
+  it.each([['un número', '5'], ['un string', '"lote 5"'], ['un array', '[1]'], ['null', 'null']])('argumentos que son %s → LlmError', async (_name, raw) => {
+    const body = { choices: [{ message: { tool_calls: [{ function: { name: 'consultar_stock', arguments: raw } }] } }] };
+    await expect(interpretWithLlm(req, cfg(fakeFetch(body)))).rejects.toBeInstanceOf(LlmError);
+  });
+
+  it('el error HTTP lleva el status', async () => {
+    await expect(interpretWithLlm(req, cfg(fakeFetch({}, 401)))).rejects.toMatchObject({ status: 401 });
+  });
+
+  describe('request enviado', () => {
+    const bodyOf = async (request: InterpretRequest & { farmSummary: string }, config: LlmConfig) => {
+      await interpretWithLlm(request, config);
+      return JSON.parse((config.fetchImpl as jest.Mock).mock.calls[0][1].body);
+    };
+    const ok = () => fakeFetch(toolCall('consultar_stock', {}));
+
+    it('manda el historial entre el system prompt y el mensaje actual, con sus roles', async () => {
+      const history = [
+        { role: 'user' as const, text: 'pasé 40 al 5' },
+        { role: 'assistant' as const, text: '¿De qué lote salen?' },
+      ];
+      const body = await bodyOf({ ...req, history }, cfg(ok()));
+      expect(body.messages.map((m: { role: string }) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+      expect(body.messages.slice(1)).toEqual([
+        { role: 'user', content: 'pasé 40 al 5' },
+        { role: 'assistant', content: '¿De qué lote salen?' },
+        { role: 'user', content: 'pasé 40 vaquillonas del 3 al 5' },
+      ]);
+    });
+
+    it('el pendiente llega al system prompt del request', async () => {
+      const pending = { intent: { tool: 'mover_animales' as const, args: { cantidad: 40 } }, missing: 'lote_origen' as const };
+      const body = await bodyOf({ ...req, pending }, cfg(ok()));
+      expect(body.messages[0].content).toContain('falta "lote_origen"');
+    });
+
+    it('reasoning_effort se manda solo si está configurado', async () => {
+      const sin = await bodyOf(req, cfg(ok()));
+      expect(sin).not.toHaveProperty('reasoning_effort');
+      const con = await bodyOf(req, { ...cfg(ok()), reasoningEffort: 'minimal' });
+      expect(con.reasoning_effort).toBe('minimal');
+    });
+  });
 });
 
 describe('definiciones para OpenAI', () => {
@@ -72,6 +117,11 @@ describe('definiciones para OpenAI', () => {
     const defs = toolDefinitions() as { function: { name: string; parameters: { properties: Record<string, { pattern?: string }> } } }[];
     const lluvia = defs.find((d) => d.function.name === 'registrar_lluvia');
     expect(lluvia?.function.parameters.properties.fecha.pattern).toBe('^\\d{4}-\\d{2}-\\d{2}$');
+  });
+
+  it('el prompt pide pasar fecha solo si el productor la dijo', () => {
+    const prompt = systemPrompt({ today: '2026-10-13', farmSummary: 'Lote 3: 45 vaquillonas', pending: null });
+    expect(prompt).toContain('Pasá fecha solo si el productor dijo cuándo');
   });
 
   it('el prompt incluye fecha, campo y pendiente', () => {

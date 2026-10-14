@@ -169,6 +169,81 @@ describe('runTurn', () => {
     expect(out).toMatchObject({ via: 'local', degraded: true });
   });
 
+  describe('confirmación de lluvias de más de 150 mm', () => {
+    // El LLM puede mandar cualquier argumento, incluso uno que el schema no deja pasar por tipos.
+    const iaLluvia = (args: () => object): TurnDeps['interpret'] => async () => ({
+      interpretation: { kind: 'intent', intent: { tool: 'registrar_lluvia', args: args() } } as never,
+      via: 'ia',
+      degraded: false,
+    });
+
+    it('ignora un confirmado que viene del intérprete sin pendiente de confirmación', async () => {
+      const { store, deps } = setup(iaLluvia(() => ({ mm: 300, confirmado: true })));
+      const out = await runTurn('cayeron trescientos', 'voz', initialConversation, deps);
+      expect(out.state.pending?.missing).toBe('confirmacion');
+      expect(out.expectsReply).toBe(true);
+      expect(await store.list()).toEqual([]);
+    });
+
+    it('ignora el confirmado aunque haya otro pendiente activo', async () => {
+      let args: object = {};
+      const { store, deps } = setup(iaLluvia(() => args));
+      const first = await runTurn('llovió', 'voz', initialConversation, deps);
+      expect(first.state.pending?.missing).toBe('mm');
+      args = { mm: 300, confirmado: true };
+      const second = await runTurn('trescientos', 'voz', first.state, deps);
+      expect(second.state.pending?.missing).toBe('confirmacion');
+      expect(await store.list()).toEqual([]);
+    });
+
+    it('con la confirmación pendiente activa, el confirmado sí registra', async () => {
+      let args: object = { mm: 300 };
+      const { store, deps } = setup(iaLluvia(() => args));
+      const first = await runTurn('cayeron trescientos', 'voz', initialConversation, deps);
+      expect(first.state.pending?.missing).toBe('confirmacion');
+      args = { mm: 300, confirmado: true };
+      const second = await runTurn('sí', 'voz', first.state, deps);
+      expect(second.state.pending).toBeNull();
+      expect(await store.list()).toEqual([expect.objectContaining({ type: 'lluvia', payload: { mm: 300 } })]);
+    });
+
+    it('una confirmación vencida no sirve: pide confirmar de nuevo', async () => {
+      let args: object = { mm: 300 };
+      const { store, deps, advance } = setup(iaLluvia(() => args));
+      const first = await runTurn('cayeron trescientos', 'voz', initialConversation, deps);
+      advance(61_000);
+      args = { mm: 300, confirmado: true };
+      const second = await runTurn('sí', 'voz', first.state, deps);
+      expect(second.state.pending?.missing).toBe('confirmacion');
+      expect(await store.list()).toEqual([]);
+    });
+  });
+
+  it('un pendiente vencido no se revive desde el historial que ve el intérprete', async () => {
+    const interpret = jest.fn(localInterpret);
+    const { deps, advance } = setup(interpret);
+    const first = await runTurn('Pasé 40 vaquillonas al 5', 'voz', initialConversation, deps);
+    const vigente = await runTurn('banana', 'voz', first.state, deps);
+    expect(interpret.mock.calls[1][0].history).toHaveLength(2);
+    advance(61_000);
+    await runTurn('del 3', 'voz', vigente.state, deps);
+    expect(interpret.mock.calls[2][0]).toMatchObject({ pending: null, history: [] });
+  });
+
+  it('un rechazo usa siempre la plantilla y no pasa por la redacción del LLM', async () => {
+    const ia: TurnDeps['interpret'] = async () => ({
+      interpretation: { kind: 'intent', intent: { tool: 'mover_animales', args: { cantidad: 50, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } } },
+      via: 'ia',
+      degraded: false,
+    });
+    const phrase = jest.fn(async () => 'Listo, pasé 50 vaquillonas.');
+    const { store, deps } = setup(ia);
+    const out = await runTurn('pasé 50 del 3 al 5', 'voz', initialConversation, { ...deps, phrase });
+    expect(phrase).not.toHaveBeenCalled();
+    expect(out.speech).toBe('En el lote 3 hay 45 vaquillonas, no 50. No registré nada.');
+    expect(await store.list()).toEqual([]);
+  });
+
   it('limita el historial a los últimos 6 mensajes', async () => {
     const { deps } = setup();
     let state = initialConversation;
