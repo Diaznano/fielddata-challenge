@@ -32,6 +32,15 @@ describe('números', () => {
     expect(findNumbers(tokenize('cuarenta y cinco vacas'))).toEqual([{ value: 45, start: 0, end: 3 }]);
   });
 
+  it('las propiedades de Object.prototype no son números', () => {
+    expect(findNumbers(tokenize('vino el constructor al lote 3')).map((n) => n.value)).toEqual([3]);
+  });
+
+  it('"cien" no se combina con lo que sigue, "ciento" sí', () => {
+    expect(findNumbers(tokenize('cien dos')).map((n) => n.value)).toEqual([100, 2]);
+    expect(findNumbers(tokenize('ciento dos')).map((n) => n.value)).toEqual([102]);
+  });
+
   it('"y" sin unidad no se consume', () => {
     expect(findNumbers(tokenize('treinta y vacas'))).toEqual([{ value: 30, start: 0, end: 1 }]);
   });

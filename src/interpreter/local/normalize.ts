@@ -8,8 +8,10 @@ export function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/[áàäéèëíìïóòöúùüñ]/g, (c) => ACCENTS[c])
+    .replace(/(\d)\.(?=\d{3}(?!\d))/g, '$1')
     .replace(/(\d),(\d)/g, '$1.$2')
     .replace(/(\d)([a-z])/g, '$1 $2')
+    .replace(/([a-z])(\d)/g, '$1 $2')
     .replace(/[^a-z0-9.\s]/g, ' ')
     .replace(/\.(?!\d)/g, ' ')
     .replace(/\s+/g, ' ')

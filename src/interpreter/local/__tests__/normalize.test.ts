@@ -12,6 +12,15 @@ describe('normalize', () => {
     expect(normalize(input)).toBe(expected);
   });
 
+  it.each([
+    ['Pasé 1.500 novillos', 'pase 1500 novillos'],
+    ['Llovieron 12.5 mm', 'llovieron 12.5 mm'],
+    ['cayeron 12,5mm', 'cayeron 12.5 mm'],
+    ['lote3', 'lote 3'],
+  ])('"%s" → "%s" (miles es-AR y unidades pegadas)', (input, expected) => {
+    expect(normalize(input)).toBe(expected);
+  });
+
   it('tokeniza sin vacíos', () => {
     expect(tokenize('  ¿Qué hay?  ')).toEqual(['que', 'hay']);
     expect(tokenize('')).toEqual([]);
