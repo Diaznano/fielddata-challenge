@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "resolveJsonModule": true,
+    "types": ["jest"],
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["**/*.ts", "**/*.tsx", "expo-env.d.ts"]
