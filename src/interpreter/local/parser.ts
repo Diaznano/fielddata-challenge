@@ -122,10 +122,11 @@ function findRelativeDay(tokens: string[], today: string): string | undefined {
   if (daysAgo !== null) return addDays(today, -daysAgo);
   const weekdayDate = findWeekdayDate(tokens, today);
   if (weekdayDate) return weekdayDate;
-  if (tokens.includes('mananita')) return today;
   const tomorrow = tokens.indexOf('manana');
   // "mañana" a secas y "de mañana" son el día siguiente (la herramienta lo rechaza); solo las partes del día de hoy llevan fecha de hoy.
+  // "mañanita" va después porque en "mañana a la mañanita" la hora es de mañana, no de hoy.
   if (tomorrow >= 0) return isMorningOfToday(tokens, tomorrow) ? today : addDays(today, 1);
+  if (tokens.includes('mananita')) return today;
   return undefined;
 }
 

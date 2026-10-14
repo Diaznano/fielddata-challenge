@@ -67,4 +67,5 @@ export const PHRASES: { text: string; expected: Intent | null }[] = [
   { text: 'La lluvia de mañana va a ser de 30 mm', expected: lluvia({ mm: 30, fecha: '2026-10-14' }) },
   { text: 'El viernes próximo pasamos 20 vacas del 1 al 2', expected: mover({ cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 2, fecha: '2026-10-16' }) },
   { text: 'Pasé 40 vaquillonas de 2 dientes del 3 al 5', expected: mover({ cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 }) },
+  { text: 'Mañana a la mañanita pasamos 20 vacas del 1 al 2', expected: mover({ cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 2, fecha: '2026-10-14' }) },
 ];

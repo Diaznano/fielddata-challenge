@@ -232,3 +232,19 @@ describe('parseLocal: mañana', () => {
     });
   });
 });
+
+describe('parseLocal: "una" no es un lote', () => {
+  it('"a la una" es una hora y no el destino', () => {
+    expect(parseLocal('Pasamos 20 vacas a la una del 3 al 5', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 20, categoria: 'vacas', lote_origen: 3, lote_destino: 5 } },
+    });
+  });
+
+  it('"el lote una" en una consulta de stock no filtra por el lote 1', () => {
+    expect(parseLocal('¿Cuántos animales hay en el lote una?', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'consultar_stock', args: {} },
+    });
+  });
+});
