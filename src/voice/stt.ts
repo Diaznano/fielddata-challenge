@@ -37,11 +37,12 @@ export async function sttCapabilities(): Promise<SttCapabilities> {
   }
 }
 
-// Con red se usa el reconocedor online (mejor con ruido); sin red, el modelo on-device si está instalado.
+// Con red se usa el reconocedor online (mejor con ruido). Sin red siempre se pide on-device: en Android < 13 la detección de
+// paquetes instalados devuelve listas vacías y no se puede saber si el modelo está, pero el pack offline de Google igual se usa.
 export function startListening(opts: { online: boolean; onDeviceLocale: string | null }): void {
-  const onDevice = !opts.online && opts.onDeviceLocale !== null;
+  const onDevice = !opts.online;
   ExpoSpeechRecognitionModule.start({
-    lang: onDevice && opts.onDeviceLocale ? opts.onDeviceLocale : 'es-AR',
+    lang: onDevice ? (opts.onDeviceLocale ?? 'es-AR') : 'es-AR',
     interimResults: true,
     continuous: false,
     requiresOnDeviceRecognition: onDevice,

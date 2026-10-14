@@ -9,8 +9,9 @@ export async function initTts(): Promise<void> {
   language = PREFERENCE.find((p) => languages.includes(p)) ?? languages.find((l) => l.startsWith('es')) ?? language;
 }
 
-export function speak(text: string, onDone: () => void): void {
-  Speech.speak(text, { language, rate: 1.05, onDone, onStopped: onDone, onError: () => onDone() });
+// `completed` distingue el fin natural de una interrupción (tap, app al fondo, error): solo el primero puede reabrir el micrófono.
+export function speak(text: string, onFinish: (completed: boolean) => void): void {
+  Speech.speak(text, { language, rate: 1.05, onDone: () => onFinish(true), onStopped: () => onFinish(false), onError: () => onFinish(false) });
 }
 
 export function stopSpeaking(): void {

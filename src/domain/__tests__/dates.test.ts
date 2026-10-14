@@ -1,4 +1,4 @@
-import { addDays, describeDay, formatLongDate, formatShortDate, isValidISODate, lastWeekday, monthRangeOf, nextWeekday, periodRange, resolveRelativeDay, toISODate } from '../dates';
+import { addDays, describeDay, formatLongDate, formatShortDate, formatTime, isValidISODate, lastWeekday, monthRangeOf, nextWeekday, periodRange, resolveRelativeDay, toISODate } from '../dates';
 
 describe('fechas', () => {
   it('formatea fechas locales como YYYY-MM-DD', () => {
@@ -78,5 +78,10 @@ describe('fechas', () => {
   it('el próximo día de la semana cruza meses y años', () => {
     expect(nextWeekday(5, '2026-12-31')).toBe('2027-01-01');
     expect(nextWeekday(4, '2026-12-31')).toBe('2027-01-07');
+  });
+
+  it('formatea la hora local como HH:MM con ceros a la izquierda', () => {
+    expect(formatTime(new Date(2026, 9, 13, 9, 5).toISOString())).toBe('09:05');
+    expect(formatTime(new Date(2026, 9, 13, 23, 40).toISOString())).toBe('23:40');
   });
 });

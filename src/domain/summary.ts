@@ -1,5 +1,5 @@
 import { categoryLabel } from './categories';
-import { describeDay, monthName, periodRange, toISODate } from './dates';
+import { describeDay, formatTime, monthName, periodRange, toISODate } from './dates';
 import { formatMm, lastRain, rainInRange, RainItem } from './rain';
 import { activeEvents, farmTotal, projectStock } from './stock';
 import { CATEGORIES, Farm, FarmEvent } from './types';
@@ -20,17 +20,12 @@ export interface TodaySummary {
   records: TodayRecord[];
 }
 
-function localTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 export function todaySummary(farm: Farm, events: FarmEvent[], today: string): TodaySummary {
   const recordedToday = activeEvents(events).filter(
     (e) => e.source !== 'semilla' && toISODate(new Date(e.recordedAt)) === today,
   );
   const records = [...recordedToday].reverse().map((e) => ({
-    time: localTime(e.recordedAt),
+    time: formatTime(e.recordedAt),
     text:
       e.type === 'lluvia'
         ? `Lluvia ${formatMm(e.payload.mm)} mm${e.occurredOn === today ? '' : ` · ${describeDay(e.occurredOn, today)}`}`
