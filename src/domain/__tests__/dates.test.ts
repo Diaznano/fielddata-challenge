@@ -30,6 +30,10 @@ describe('fechas', () => {
     expect(periodRange('semana', '2026-10-13')).toEqual({ from: '2026-10-07', to: '2026-10-13', label: 'en los últimos 7 días' });
   });
 
+  it('el último día es hoy y no "los últimos 1 días"', () => {
+    expect(periodRange('ultimos_dias', '2026-10-13', 1)).toEqual({ from: '2026-10-13', to: '2026-10-13', label: 'hoy' });
+  });
+
   it('hoy y ayer como rangos de un día', () => {
     expect(periodRange('hoy', '2026-10-13')).toEqual({ from: '2026-10-13', to: '2026-10-13', label: 'hoy' });
     expect(periodRange('ayer', '2026-10-13')).toEqual({ from: '2026-10-12', to: '2026-10-12', label: 'ayer' });

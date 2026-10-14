@@ -93,6 +93,97 @@ describe('runTurn', () => {
     expect((await store.list()).map((e) => e.type)).toEqual(['lluvia', 'anulacion']);
   });
 
+  describe('deshacer con una repregunta abierta', () => {
+    const iaDeshacer: TurnDeps['interpret'] = async () => ({
+      interpretation: { kind: 'intent', intent: { tool: 'deshacer_ultimo', args: {} } },
+      via: 'ia',
+      degraded: false,
+    });
+
+    it('la IA que pide deshacer con un pendiente cancela la repregunta y no anula un registro viejo', async () => {
+      const { store, deps } = setup();
+      await runTurn('Llovieron 18 mm anoche', 'voz', initialConversation, deps);
+      const pendiente = await runTurn('Pasé 40 vaquillonas al 5', 'voz', initialConversation, deps);
+      expect(pendiente.state.pending?.missing).toBe('lote_origen');
+
+      const out = await runTurn('borrá eso', 'voz', pendiente.state, { ...deps, interpret: iaDeshacer });
+      expect(out.card.title).toBe('Cancelado');
+      expect(out.speech).toBe('Listo, lo dejamos ahí.');
+      expect(out.state.pending).toBeNull();
+      expect((await store.list()).map((e) => e.type)).toEqual(['lluvia']);
+    });
+
+    it('sin pendiente la IA sí anula el último registro', async () => {
+      const { store, deps } = setup();
+      const first = await runTurn('Llovieron 18 mm anoche', 'voz', initialConversation, deps);
+      const out = await runTurn('borrá eso', 'voz', first.state, { ...deps, interpret: iaDeshacer });
+      expect(out.card.title).toBe('Registro anulado');
+      expect((await store.list()).map((e) => e.type)).toEqual(['lluvia', 'anulacion']);
+    });
+
+    it('con el pendiente vencido el deshacer vuelve a valer', async () => {
+      const { store, deps, advance } = setup();
+      await runTurn('Llovieron 18 mm anoche', 'voz', initialConversation, deps);
+      const pendiente = await runTurn('Pasé 40 vaquillonas al 5', 'voz', initialConversation, deps);
+      advance(61_000);
+      const out = await runTurn('borrá eso', 'voz', pendiente.state, { ...deps, interpret: iaDeshacer });
+      expect(out.card.title).toBe('Registro anulado');
+      expect((await store.list()).map((e) => e.type)).toEqual(['lluvia', 'anulacion']);
+    });
+  });
+
+  describe('valores en cero con el parser local', () => {
+    it('"llovieron 0 mm" repregunta los milímetros y no escribe nada', async () => {
+      const { store, deps } = setup();
+      const first = await runTurn('llovieron 0 mm', 'voz', initialConversation, deps);
+      expect(first).toMatchObject({ speech: '¿Cuántos milímetros llovieron?', expectsReply: true });
+      expect(first.state.pending?.missing).toBe('mm');
+      expect(await store.list()).toEqual([]);
+
+      const again = await runTurn('cero', 'voz', first.state, deps);
+      expect(again.speech).toBe('¿Cuántos milímetros llovieron?');
+      expect(await store.list()).toEqual([]);
+
+      const done = await runTurn('18', 'voz', again.state, deps);
+      expect(done.speech).toBe('Anotado: 18 milímetros hoy. En octubre van 18.');
+      expect(await store.list()).toHaveLength(1);
+    });
+
+    it('"pasé 0 vacas del 1 al 2" repregunta la cantidad y no escribe nada', async () => {
+      const { store, deps } = setup();
+      const first = await runTurn('pasé 0 vacas del 1 al 2', 'voz', initialConversation, deps);
+      expect(first).toMatchObject({ speech: '¿Cuántas vacas?', expectsReply: true });
+      expect(first.state.pending?.missing).toBe('cantidad');
+      expect(await store.list()).toEqual([]);
+
+      const again = await runTurn('cero', 'voz', first.state, deps);
+      expect(again.speech).toBe('¿Cuántas vacas?');
+      expect(await store.list()).toEqual([]);
+
+      const done = await runTurn('diez', 'voz', again.state, deps);
+      expect(done.speech).toBe('Listo, pasé 10 vacas del lote 1 al 2.');
+      expect(await store.list()).toHaveLength(1);
+    });
+  });
+
+  it('con el parser local, corregir los milímetros a una confirmación vuelve a validar el valor nuevo', async () => {
+    const { store, deps } = setup();
+    const first = await runTurn('llovieron 200 mm', 'voz', initialConversation, deps);
+    expect(first.state.pending?.missing).toBe('confirmacion');
+    const second = await runTurn('no, eran 18', 'voz', first.state, deps);
+    expect(second.speech).toBe('Anotado: 18 milímetros hoy. En octubre van 18.');
+    expect(await store.list()).toEqual([expect.objectContaining({ type: 'lluvia', payload: { mm: 18 } })]);
+  });
+
+  it('con el parser local, corregir a otro valor grande vuelve a pedir confirmación', async () => {
+    const { store, deps } = setup();
+    const first = await runTurn('llovieron 200 mm', 'voz', initialConversation, deps);
+    const second = await runTurn('sí, pero eran 300', 'voz', first.state, deps);
+    expect(second.speech).toBe('¿Seguro que fueron 300 milímetros?');
+    expect(second.state.pending).toMatchObject({ missing: 'confirmacion', intent: { args: { mm: 300 } } });
+    expect(await store.list()).toEqual([]);
+  });
+
   it('el botón Deshacer ejecuta la herramienta sin pasar por el intérprete', async () => {
     const interpret = jest.fn(localInterpret);
     const { deps } = setup(interpret);

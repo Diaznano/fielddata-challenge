@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, fontSize } from './theme';
 
 export function TextFallback({ expanded, disabled, onSubmit }: { expanded: boolean; disabled: boolean; onSubmit: (text: string) => void }) {
@@ -15,6 +15,7 @@ export function TextFallback({ expanded, disabled, onSubmit }: { expanded: boole
     if (!text) return;
     onSubmit(text);
     setValue('');
+    Keyboard.dismiss();
   };
 
   if (!open) {
@@ -47,7 +48,7 @@ export function TextFallback({ expanded, disabled, onSubmit }: { expanded: boole
 const styles = StyleSheet.create({
   toggle: { paddingHorizontal: 16, paddingVertical: 10 },
   toggleText: { fontSize: fontSize.body, color: colors.brand, fontWeight: '700' },
-  row: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8 },
+  row: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 },
   input: { flex: 1, fontSize: fontSize.body, color: colors.text, borderWidth: 2, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   send: { backgroundColor: colors.brand, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
   sendText: { fontSize: fontSize.body, color: colors.white, fontWeight: '800' },

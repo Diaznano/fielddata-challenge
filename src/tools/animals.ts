@@ -2,7 +2,7 @@ import { categoryLabel } from '@/domain/categories';
 import { countTotal, farmTotal, projectStock } from '@/domain/stock';
 import { CATEGORIES, MoveEvent } from '@/domain/types';
 import { Card } from './cards';
-import { capitalize, cuantos, eventOrigin, joinEs, lotRangeText, needs, reject } from './format';
+import { capitalize, cuantos, eventOrigin, joinEs, lotRangeText, needs, plural, reject } from './format';
 import { ToolArgs } from './schemas';
 import { Slot, ToolContext, ToolResult } from './types';
 
@@ -29,7 +29,10 @@ function ask(args: MoveArgs, slot: Slot, question: string): ToolResult {
 export function moverAnimales(args: MoveArgs, ctx: ToolContext): ToolResult {
   const lots = ctx.farm.lots;
   if (args.categoria === undefined) return ask(args, 'categoria', '¿Qué animales? Vacas, vaquillonas, terneros, novillos o toros.');
-  if (args.cantidad === undefined) return ask(args, 'cantidad', `¿${cuantos(args.categoria)} ${args.categoria}?`);
+  // El parser local puede entregar 0 ("pasé 0 vacas"): no es un movimiento, es un dato que falta.
+  if (args.cantidad === undefined || (args.cantidad !== 'todas' && args.cantidad <= 0)) {
+    return ask({ ...args, cantidad: undefined }, 'cantidad', `¿${cuantos(args.categoria)} ${args.categoria}?`);
+  }
   if (args.lote_origen === undefined) return ask(args, 'lote_origen', '¿De qué lote salen?');
   if (!lots.includes(args.lote_origen)) {
     return ask({ ...args, lote_origen: undefined }, 'lote_origen', `No tengo lote ${args.lote_origen}, ${lotRangeText(lots)}. ¿De qué lote salen?`);
@@ -72,7 +75,11 @@ export function moverAnimales(args: MoveArgs, ctx: ToolContext): ToolResult {
       tone: 'registro',
       title: 'Movimiento registrado',
       headline: `${count} ${label}`,
-      lines: [`Lote ${from} → Lote ${to}`, `Lote ${from}: ${before[from][cat]} → ${after[from][cat]} ${cat}`, `Lote ${to}: ${before[to][cat]} → ${after[to][cat]} ${cat}`],
+      lines: [
+        `Lote ${from} → Lote ${to}`,
+        `Lote ${from}: ${before[from][cat]} → ${after[from][cat]} ${categoryLabel(cat, after[from][cat])}`,
+        `Lote ${to}: ${before[to][cat]} → ${after[to][cat]} ${categoryLabel(cat, after[to][cat])}`,
+      ],
       undoableEventId: event.id,
       at: ctx.now,
     },
@@ -91,7 +98,7 @@ export function consultarStock(args: ToolArgs<'consultar_stock'>, ctx: ToolConte
   }
   if (lote !== undefined && categoria !== undefined) {
     const n = stock[lote][categoria];
-    return answer(`En el lote ${lote} hay ${n} ${categoryLabel(categoria, n)}.`, {
+    return answer(n === 0 ? `En el lote ${lote} no hay ${categoria}.` : `En el lote ${lote} hay ${n} ${categoryLabel(categoria, n)}.`, {
       tone: 'consulta',
       title: `Lote ${lote} · ${capitalize(categoria)}`,
       headline: `${n}`,
@@ -102,10 +109,10 @@ export function consultarStock(args: ToolArgs<'consultar_stock'>, ctx: ToolConte
     const counts = stock[lote];
     const total = countTotal(counts);
     const parts = CATEGORIES.filter((c) => counts[c] > 0).map((c) => `${counts[c]} ${categoryLabel(c, counts[c])}`);
-    return answer(total === 0 ? `El lote ${lote} está vacío.` : `En el lote ${lote} hay ${total} animales: ${joinEs(parts)}.`, {
+    return answer(total === 0 ? `El lote ${lote} está vacío.` : `En el lote ${lote} hay ${total} ${plural(total, 'animal', 'animales')}: ${joinEs(parts)}.`, {
       tone: 'consulta',
       title: `Lote ${lote}`,
-      headline: `${total} cabezas`,
+      headline: `${total} ${plural(total, 'cabeza', 'cabezas')}`,
       lines: parts.length > 0 ? parts : ['Sin animales'],
     });
   }

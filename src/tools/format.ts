@@ -1,10 +1,19 @@
-import { formatMm } from '@/domain/rain';
+import { formatMm, roundMm } from '@/domain/rain';
 import { Category } from '@/domain/types';
 import { Card } from './cards';
 import { Intent } from './schemas';
 import { Slot, ToolContext, ToolResult } from './types';
 
 export const fmtMm = formatMm;
+
+export function plural(n: number, singular: string, pluralForm: string): string {
+  return n === 1 ? singular : pluralForm;
+}
+
+// Se compara el valor redondeado que se dice en voz alta: 1,04 se lee "1 milímetro".
+export function mmText(mm: number): string {
+  return `${fmtMm(mm)} ${plural(roundMm(mm), 'milímetro', 'milímetros')}`;
+}
 
 export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);

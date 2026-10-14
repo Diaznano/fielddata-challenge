@@ -18,6 +18,9 @@ export class LlmError extends Error {
   }
 }
 
+// El pedido no llegó o no volvió a tiempo (sin respuesta HTTP): lo único que justifica avisar "señal débil".
+export class LlmNetworkError extends LlmError {}
+
 export function toolDefinitions(): object[] {
   const tools = (Object.keys(toolSchemas) as ToolName[]).map((name) => {
     const { $schema: _schema, ...parameters } = z.toJSONSchema(toolSchemas[name]) as Record<string, unknown>;
@@ -66,7 +69,7 @@ async function post(body: Record<string, unknown>, cfg: LlmConfig, timeoutMs: nu
     return await res.json();
   } catch (e) {
     if (e instanceof LlmError) throw e;
-    throw new LlmError(controller.signal.aborted ? 'timeout' : String(e));
+    throw new LlmNetworkError(controller.signal.aborted ? 'timeout' : String(e));
   } finally {
     clearTimeout(timer);
   }

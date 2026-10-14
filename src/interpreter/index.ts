@@ -1,7 +1,7 @@
 import { InterpretOutcome, InterpretRequest } from '@/conversation/engine';
 import { farmSummaryText } from '@/domain/summary';
 import { Farm } from '@/domain/types';
-import { interpretWithLlm, LlmConfig, LlmError } from './llm';
+import { interpretWithLlm, LlmConfig, LlmError, LlmNetworkError } from './llm';
 import { parseLocal } from './local/parser';
 
 export async function interpretLocally(req: InterpretRequest): Promise<InterpretOutcome> {
@@ -30,7 +30,8 @@ export function createInterpreter(deps: InterpreterDeps) {
         keyRejected = true;
         return interpretLocally(req);
       }
-      return { ...(await interpretLocally(req)), degraded: true };
+      // Un 429/5xx o una salida inválida no son mala señal: el badge no debe culpar a la red.
+      return { ...(await interpretLocally(req)), degraded: error instanceof LlmNetworkError };
     }
   };
 }

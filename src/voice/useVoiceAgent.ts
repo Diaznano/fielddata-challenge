@@ -32,8 +32,12 @@ interface AgentOptions {
 }
 
 const REOPEN_MIC_MS = 300;
-const NOTICE_NETWORK = 'Sin señal no puedo reconocer la voz. Escribí abajo y lo registro igual.';
-const NOTICE_NO_SPANISH = 'Este teléfono no tiene el reconocimiento de voz en español disponible. Escribí abajo y lo registro igual.';
+// Con señal, estos errores no son falta de red ni del paquete offline: el aviso no puede decir "sin señal".
+const NOTICE_ONLINE_STT_ERROR = {
+  network: 'No pude conectar con el reconocimiento de voz. Probá de nuevo o escribí abajo.',
+  'service-not-allowed': 'No pude usar el reconocimiento de voz. Probá de nuevo o escribí abajo.',
+  'language-not-supported': 'Este teléfono no tiene el reconocimiento de voz en español disponible. Escribí abajo y lo registro igual.',
+} as const;
 const NOTICE_GENERIC = 'No pude escucharte. Probá de nuevo o escribí abajo.';
 
 function feedback(tone: CardTone): void {
@@ -58,6 +62,8 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   const listenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reopenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnInFlight = useRef(false);
+  // Con el que arrancó la escucha: preguntar de nuevo al fallar puede contestar otra cosa si la red cambió en el medio.
+  const listenOnline = useRef(true);
   const utterance = useRef(0);
   // Por sesión de escucha: la mejor frase oída hasta ahora y si ya se resolvió (enviada, cancelada o fallida), para enviarla una sola vez.
   const heard = useRef('');
@@ -107,9 +113,11 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     dispatch({ type: 'DONE' });
   }
 
+  // Cada await es una ventana en la que puede empezar un turno (texto, Deshacer): el reconocedor no se abre encima de uno en curso.
   async function listen() {
     if (turnInFlight.current) return;
     const result = await requestMic();
+    if (turnInFlight.current) return;
     if (result !== 'granted') {
       blockMic();
       return;
@@ -119,10 +127,13 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
       setNotice({ text: 'Este teléfono no tiene el reconocimiento de voz activo. Podés escribir abajo.' });
       return;
     }
+    const onlineNow = await isOnline();
+    if (turnInFlight.current) return;
+    listenOnline.current = onlineNow;
     sessionDone.current = false;
     heard.current = '';
     setPartial('');
-    startListening({ online: await isOnline(), onDeviceLocale: caps.current.onDeviceLocale });
+    startListening({ online: onlineNow, onDeviceLocale: caps.current.onDeviceLocale });
     clearListenTimer();
     listenTimer.current = setTimeout(stopListening, MAX_LISTEN_MS);
   }
@@ -134,7 +145,8 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     speak(text, (completed) => {
       if (id !== utterance.current) return;
       dispatch({ type: 'DONE' });
-      if (reopenMic && completed) {
+      // Con la app en segundo plano el micrófono no se reabre: el permiso y el audio ya no son nuestros.
+      if (reopenMic && completed && AppState.currentState === 'active') {
         reopenTimer.current = setTimeout(() => {
           reopenTimer.current = null;
           void handlers.current.listen();
@@ -280,12 +292,9 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   }
 
   // Sin señal, estos errores son el paquete de español sin instalar y hay solución; con señal son otro problema.
-  function sttUnavailable(error: 'network' | 'language-not-supported' | 'service-not-allowed') {
+  function sttUnavailable(error: keyof typeof NOTICE_ONLINE_STT_ERROR) {
     closeSession();
-    void isOnline().then((onlineNow) => {
-      if (!onlineNow) setNotice(offlineVoiceNotice());
-      else setNotice({ text: error === 'network' ? NOTICE_NETWORK : NOTICE_NO_SPANISH });
-    });
+    setNotice(listenOnline.current ? { text: NOTICE_ONLINE_STT_ERROR[error] } : offlineVoiceNotice());
   }
 
   // Los listeners nativos y el callback del TTS se registran una vez; leen siempre la versión actual.
@@ -326,6 +335,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
         sttUnavailable(event.error);
         return;
       default:
+        if (handlers.current.sendHeard()) return;
         closeSession();
         setNotice({ text: NOTICE_GENERIC });
     }

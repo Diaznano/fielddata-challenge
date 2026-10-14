@@ -20,6 +20,21 @@ describe('mover_animales', () => {
     expect(r.status === 'ok' && r.speech).toBe('Listo, pasé 1 toro del lote 7 al 6.');
   });
 
+  it('el antes → después de la tarjeta concuerda en singular con el resultado', () => {
+    const toLot8 = moverAnimales({ cantidad: 1, categoria: 'toros', lote_origen: 7, lote_destino: 8 }, makeCtx());
+    expect(toLot8.status === 'ok' && toLot8.card.lines).toEqual(['Lote 7 → Lote 8', 'Lote 7: 10 → 9 toros', 'Lote 8: 0 → 1 toro']);
+    const leavesOne = moverAnimales({ cantidad: 9, categoria: 'toros', lote_origen: 7, lote_destino: 8 }, makeCtx());
+    expect(leavesOne.status === 'ok' && leavesOne.card.lines).toEqual(['Lote 7 → Lote 8', 'Lote 7: 10 → 1 toro', 'Lote 8: 0 → 9 toros']);
+  });
+
+  it.each([0, -2])('cantidad %s cuenta como dato faltante: repregunta y no mueve', (cantidad) => {
+    const r = moverAnimales({ ...full, cantidad }, makeCtx());
+    expect(r).toMatchObject({ status: 'needs_info', missing: 'cantidad', question: '¿Cuántas vaquillonas?' });
+    if (r.status !== 'needs_info') return;
+    expect(r.partial).toEqual({ tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } });
+    expect(r.card.fields).toContainEqual({ label: 'Cantidad', value: null });
+  });
+
   it('"todas" mueve todo lo disponible', () => {
     const r = moverAnimales({ cantidad: 'todas', categoria: 'toros', lote_origen: 7, lote_destino: 6 }, makeCtx());
     expect(r.status === 'ok' && r.newEvents[0].payload).toEqual({ category: 'toros', count: 10, fromLot: 7, toLot: 6 });
@@ -78,6 +93,18 @@ describe('consultar_stock', () => {
 
   it('lote vacío', () => {
     expect(speech({ lote: 8 })).toBe('El lote 8 está vacío.');
+  });
+
+  it('un lote con un solo animal habla en singular', () => {
+    const events = [move('m', 1, 'toros', 7, 8)];
+    expect(speech({ lote: 8 }, events)).toBe('En el lote 8 hay 1 animal: 1 toro.');
+    const r = consultarStock({ lote: 8 }, makeCtx(events));
+    expect(r.status === 'ok' && r.card).toEqual({ tone: 'consulta', title: 'Lote 8', headline: '1 cabeza', lines: ['1 toro'] });
+  });
+
+  it('lote y categoría sin animales dice que no hay', () => {
+    expect(speech({ lote: 3, categoria: 'vacas' })).toBe('En el lote 3 no hay vacas.');
+    expect(speech({ lote: 3, categoria: 'vaquillonas' }, [move('m', 44, 'vaquillonas', 3, 5)])).toBe('En el lote 3 hay 1 vaquillona.');
   });
 
   it('lote y categoría', () => {

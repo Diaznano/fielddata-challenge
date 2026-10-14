@@ -1,8 +1,8 @@
 import { describeDay, formatShortDate, monthName, monthRangeOf, periodRange } from '@/domain/dates';
-import { rainInRange } from '@/domain/rain';
+import { rainInRange, roundMm } from '@/domain/rain';
 import { RainEvent } from '@/domain/types';
 import { Card } from './cards';
-import { capitalize, eventOrigin, fmtMm, needs, reject } from './format';
+import { capitalize, eventOrigin, fmtMm, mmText, needs, plural, reject } from './format';
 import { ToolArgs } from './schemas';
 import { ToolContext, ToolResult } from './types';
 
@@ -26,8 +26,10 @@ export function registrarLluvia(args: RainArgs, ctx: ToolContext): ToolResult {
   const intent = { tool: 'registrar_lluvia' as const, args };
   const fecha = args.fecha ?? ctx.today;
   if (fecha > ctx.today) return reject('Fecha futura', 'Esa fecha todavía no llegó. No registré nada.');
-  if (args.mm === undefined) {
-    return needs(intent, 'mm', '¿Cuántos milímetros llovieron?', pendingCard(args, fecha, ctx.today));
+  // El parser local puede entregar 0 ("llovieron 0 mm"): no es una lluvia, es un dato que falta.
+  if (args.mm === undefined || args.mm <= 0) {
+    const { mm: _mm, ...missing } = args;
+    return needs({ tool: 'registrar_lluvia', args: missing }, 'mm', '¿Cuántos milímetros llovieron?', pendingCard(missing, fecha, ctx.today));
   }
   if (args.mm > RAIN_CONFIRM_ABOVE_MM && !args.confirmado) {
     return needs(intent, 'confirmacion', `¿Seguro que fueron ${fmtMm(args.mm)} milímetros?`, pendingCard(args, fecha, ctx.today));
@@ -40,7 +42,7 @@ export function registrarLluvia(args: RainArgs, ctx: ToolContext): ToolResult {
   return {
     status: 'ok',
     newEvents: [event],
-    speech: `Anotado: ${fmtMm(args.mm)} milímetros ${day}. En ${mes} van ${fmtMm(month.totalMm)}.`,
+    speech: `Anotado: ${mmText(args.mm)} ${day}. En ${mes} van ${fmtMm(month.totalMm)}.`,
     card: {
       tone: 'registro',
       title: 'Lluvia registrada',
@@ -58,7 +60,7 @@ export function consultarLluvia(args: ToolArgs<'consultar_lluvia'>, ctx: ToolCon
   const speech =
     items.length === 0
       ? `No llovió ${range.label}.`
-      : `${capitalize(range.label)} llovieron ${fmtMm(totalMm)} milímetros${items.length > 1 ? `, en ${items.length} lluvias` : ''}.`;
+      : `${capitalize(range.label)} ${plural(roundMm(totalMm), 'llovió', 'llovieron')} ${mmText(totalMm)}${items.length > 1 ? `, en ${items.length} lluvias` : ''}.`;
   return {
     status: 'ok',
     newEvents: [],

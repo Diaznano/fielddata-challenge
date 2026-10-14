@@ -77,7 +77,8 @@ export function periodRange(period: RainPeriod, today: string, days = 7): DateRa
       return { from: toISODate(first), to: toISODate(last), label: `en ${MONTHS[first.getMonth()]}` };
     }
     case 'ultimos_dias':
-      return { from: addDays(today, -(days - 1)), to: today, label: `en los últimos ${days} días` };
+      // El rango de un solo día incluye hoy, así que "los últimos 1 días" es hoy.
+      return { from: addDays(today, -(days - 1)), to: today, label: days === 1 ? 'hoy' : `en los últimos ${days} días` };
   }
 }
 

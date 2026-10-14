@@ -123,7 +123,11 @@ export async function runTurn(text: string, source: EventSource, state: Conversa
   const events = await deps.store.list();
   // Con el pendiente vencido el historial sigue mostrando su pregunta y el LLM lo reconstruiría.
   const history = state.pending && !pending ? [] : state.history;
-  const { interpretation, via, degraded } = await deps.interpret({ text, pending, history, today, events });
+  const outcome = await deps.interpret({ text, pending, history, today, events });
+  const { via, degraded } = outcome;
+  // Con una repregunta abierta, "borrá eso" descarta la repregunta y no anula un registro anterior; el parser local ya lo resuelve así y el LLM no.
+  const undoesPending = pending !== null && outcome.interpretation.kind === 'intent' && outcome.interpretation.intent.tool === 'deshacer_ultimo';
+  const interpretation: Interpretation = undoesPending ? { kind: 'cancel' } : outcome.interpretation;
   const meta: TurnMeta = { text, via, degraded };
 
   switch (interpretation.kind) {

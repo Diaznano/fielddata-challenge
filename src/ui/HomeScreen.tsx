@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TurnDeps } from '@/conversation/engine';
 import { EventStore } from '@/data/eventStore';
@@ -18,6 +18,7 @@ import { Subtitles } from './Subtitles';
 import { TextFallback } from './TextFallback';
 import { colors, fontSize } from './theme';
 import { TodaySummaryView } from './TodaySummaryView';
+import { useKeyboardVisible } from './useKeyboardVisible';
 
 interface Props {
   store: EventStore;
@@ -28,6 +29,7 @@ interface Props {
 export function HomeScreen({ store, interpret, phrase }: Props) {
   const agent = useVoiceAgent({ store, farm: FARM, interpret, phrase });
   useVolumePtt(agent.onMicPress);
+  const keyboardVisible = useKeyboardVisible();
   const [summary, setSummary] = useState<TodaySummary | null>(null);
   const today = toISODate(new Date());
   const thinking = agent.mic.status === 'thinking';
@@ -42,25 +44,30 @@ export function HomeScreen({ store, interpret, phrase }: Props) {
       { text: 'Restaurar', style: 'destructive', onPress: () => void agent.resetDemo() },
     ]);
 
+  // Con edge-to-edge adjustResize no achica la vista: el padding del teclado lo pone este wrapper, afuera del SafeAreaView para que mida
+  // desde el borde de la pantalla. Con el teclado abierto se esconde el micrófono para que el campo de texto quede pegado al teclado,
+  // y sobra el inset inferior porque el teclado ya cubre la barra de navegación.
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Pressable onLongPress={thinking ? undefined : confirmReset} delayLongPress={800}>
-            <Text style={styles.farm}>{FARM.name}</Text>
-          </Pressable>
-          <StatusBadge mode={agent.mode} />
-        </View>
-        <Text style={styles.date}>{capitalize(formatLongDate(today))}</Text>
-        {summary ? <TodaySummaryView summary={summary} today={today} /> : null}
-        {agent.notice ? <NoticeBanner notice={agent.notice} /> : null}
-        {agent.card ? <ReceiptCard card={agent.card} disabled={thinking} onUndo={agent.undoLast} /> : null}
-        <Subtitles user={agent.partial || agent.lastUser} app={agent.lastReply} />
-        {summary && summary.records.length > 0 ? <History records={summary.records} /> : null}
-      </ScrollView>
-      <TextFallback expanded={agent.mic.status === 'blocked' || agent.notice !== null} disabled={thinking} onSubmit={agent.submitText} />
-      <MicButton status={agent.mic.status} onPress={agent.onMicPress} />
-    </SafeAreaView>
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
+      <SafeAreaView style={styles.screen} edges={keyboardVisible ? ['top'] : ['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <Pressable onLongPress={thinking ? undefined : confirmReset} delayLongPress={800}>
+              <Text style={styles.farm}>{FARM.name}</Text>
+            </Pressable>
+            <StatusBadge mode={agent.mode} />
+          </View>
+          <Text style={styles.date}>{capitalize(formatLongDate(today))}</Text>
+          {summary ? <TodaySummaryView summary={summary} today={today} /> : null}
+          {agent.notice ? <NoticeBanner notice={agent.notice} /> : null}
+          {agent.card ? <ReceiptCard card={agent.card} disabled={thinking} onUndo={agent.undoLast} /> : null}
+          <Subtitles user={agent.partial || agent.lastUser} app={agent.lastReply} />
+          {summary && summary.records.length > 0 ? <History records={summary.records} /> : null}
+        </ScrollView>
+        <TextFallback expanded={agent.mic.status === 'blocked' || agent.notice !== null} disabled={thinking} onSubmit={agent.submitText} />
+        {keyboardVisible ? null : <MicButton status={agent.mic.status} onPress={agent.onMicPress} />}
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 

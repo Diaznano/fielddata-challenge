@@ -40,6 +40,7 @@ const ANSWER_FILLERS = new Set([
 const UNDO = /\b(borra|borrar|borralo|deshace|deshacer|deshacelo|anula|anular|anulalo|me equivoque)\b/;
 const CANCEL = /\b(cancela|cancelar|cancelalo|olvidate|dejalo|no importa)\b/;
 const AFFIRM = /^(si|dale|correcto|confirmo|exacto|asi es)\b/;
+const NEGATION = /^no\b/;
 
 // "de una" es "enseguida", no el lote uno ni una cantidad.
 function withoutDeUna(tokens: string[]): string[] {
@@ -51,6 +52,11 @@ export function parseLocal(text: string, pending: PendingInfo | null, today: str
   if (tokens.length === 0) return { kind: 'unknown' };
   const sentence = tokens.join(' ');
 
+  if (pending?.missing === 'confirmacion' && (AFFIRM.test(sentence) || NEGATION.test(sentence))) {
+    const corrected = correctedMm(tokens, pending);
+    // El valor nuevo no hereda la confirmación: la herramienta lo vuelve a validar y repregunta si pasa el umbral.
+    if (corrected !== undefined) return { kind: 'intent', intent: withArgs(pending.intent, { mm: corrected }) };
+  }
   if (pending?.missing === 'confirmacion' && AFFIRM.test(sentence)) {
     return { kind: 'intent', intent: withArgs(pending.intent, { confirmado: true }) };
   }
@@ -66,6 +72,14 @@ export function parseLocal(text: string, pending: PendingInfo | null, today: str
     if (filled) return { kind: 'intent', intent: filled };
   }
   return { kind: 'unknown' };
+}
+
+// "sí, pero eran 20" o "no, 18" a "¿Seguro que fueron 200?": un número distinto del preguntado es una corrección, no una confirmación.
+function correctedMm(tokens: string[], pending: PendingInfo): number | undefined {
+  if (pending.intent.tool !== 'registrar_lluvia') return undefined;
+  const asked = pending.intent.args.mm;
+  const values = findNumbers(tokens).filter((n) => isMmCandidate(tokens, n)).map((n) => n.value);
+  return values.some((v) => v === asked) ? undefined : values[0];
 }
 
 function parseFresh(tokens: string[], today: string): Intent | null {

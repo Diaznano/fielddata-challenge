@@ -1,11 +1,11 @@
 import { categoryLabel } from '@/domain/categories';
 import { MoveEvent, RainEvent, VoidEvent } from '@/domain/types';
-import { capitalize, eventOrigin, fmtMm, reject } from './format';
+import { capitalize, eventOrigin, mmText, reject } from './format';
 import { ToolArgs } from './schemas';
 import { ToolContext, ToolResult } from './types';
 
 function describeEvent(e: RainEvent | MoveEvent): string {
-  if (e.type === 'lluvia') return `la lluvia de ${fmtMm(e.payload.mm)} milímetros`;
+  if (e.type === 'lluvia') return `la lluvia de ${mmText(e.payload.mm)}`;
   const { count, category, fromLot, toLot } = e.payload;
   return `el movimiento de ${count} ${categoryLabel(category, count)} del lote ${fromLot} al ${toLot}`;
 }

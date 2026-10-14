@@ -1,6 +1,6 @@
 import { InterpretRequest } from '@/conversation/engine';
 import { ToolResult } from '@/tools';
-import { interpretWithLlm, LlmConfig, LlmError, phraseWithLlm, systemPrompt, toolDefinitions } from '../llm';
+import { interpretWithLlm, LlmConfig, LlmError, LlmNetworkError, phraseWithLlm, systemPrompt, toolDefinitions } from '../llm';
 
 function fakeFetch(body: unknown, status = 200) {
   return jest.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => body })) as unknown as typeof fetch;
@@ -64,6 +64,14 @@ describe('interpretWithLlm', () => {
   it.each([['un número', '5'], ['un string', '"lote 5"'], ['un array', '[1]'], ['null', 'null']])('argumentos que son %s → LlmError', async (_name, raw) => {
     const body = { choices: [{ message: { tool_calls: [{ function: { name: 'consultar_stock', arguments: raw } }] } }] };
     await expect(interpretWithLlm(req, cfg(fakeFetch(body)))).rejects.toBeInstanceOf(LlmError);
+  });
+
+  it('solo el timeout y la falla de red son errores de red; una respuesta HTTP o una salida inválida no', async () => {
+    const unreachable = jest.fn(async () => { throw new TypeError('Network request failed'); }) as unknown as typeof fetch;
+    await expect(interpretWithLlm(req, cfg(unreachable))).rejects.toBeInstanceOf(LlmNetworkError);
+    await expect(interpretWithLlm(req, cfg(hangingFetch), 20)).rejects.toBeInstanceOf(LlmNetworkError);
+    await expect(interpretWithLlm(req, cfg(fakeFetch({}, 503)))).rejects.not.toBeInstanceOf(LlmNetworkError);
+    await expect(interpretWithLlm(req, cfg(fakeFetch(toolCall('borrar_todo', {}))))).rejects.not.toBeInstanceOf(LlmNetworkError);
   });
 
   it('el error HTTP lleva el status', async () => {

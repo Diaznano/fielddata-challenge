@@ -53,6 +53,34 @@ describe('parseLocal: respuestas a repreguntas', () => {
     expect(parseLocal('no', pending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
   });
 
+  describe('corregir el valor al confirmar una lluvia grande', () => {
+    const pending: PendingInfo = { intent: { tool: 'registrar_lluvia', args: { mm: 200, fecha: '2026-10-12' } }, missing: 'confirmacion' };
+    const corrected = (mm: number) => ({ kind: 'intent', intent: { tool: 'registrar_lluvia', args: { mm, fecha: '2026-10-12' } } });
+    const confirmed = { kind: 'intent', intent: { tool: 'registrar_lluvia', args: { mm: 200, fecha: '2026-10-12', confirmado: true } } };
+
+    it.each([
+      ['sí, pero eran 20', 20],
+      ['no, 18', 18],
+      ['no, fueron dieciocho', 18],
+      ['sí, son 12,5', 12.5],
+      ['no, eran quinientos', 500],
+    ])('"%s" corrige a %s mm sin confirmar el valor nuevo', (text, mm) => {
+      expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual(corrected(mm));
+    });
+
+    it.each(['sí', 'dale', 'sí, 200', 'sí, son doscientos', 'sí, doscientos milímetros'])('"%s" confirma el valor preguntado', (text) => {
+      expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual(confirmed);
+    });
+
+    it.each(['no', 'no, olvidate'])('"%s" cancela', (text) => {
+      expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
+    });
+
+    it('un número que mide otra cosa no corrige los milímetros', () => {
+      expect(parseLocal('sí, hace dos días', pending, FIXTURE_TODAY)).toEqual(confirmed);
+    });
+  });
+
   it.each(['cancelá', 'olvidate', 'no'])('"%s" cancela el pendiente', (text) => {
     expect(parseLocal(text, movePending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
   });

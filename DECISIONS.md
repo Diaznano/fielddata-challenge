@@ -15,7 +15,7 @@ Lo que más pesa:
 - **Nunca se traba.** Cada falla (micrófono, red, LLM, "no entendí", datos faltantes) tiene una salida visible y un camino por texto.
 - **Recorté** el script de evaluación del LLM y las tipografías de marca (detalle más abajo).
 
-Verificación: unos 300 tests unitarios (el parser contra 62 frases rioplatenses) y pruebas en una tablet Android 12 real con voz humana, TTS y la tecla de volumen. No medí precisión del reconocimiento con ruido o viento reales de campo.
+Verificación: unos 300 tests unitarios (el parser contra 62 frases rioplatenses) y pruebas en una tablet Android 12 real con voz humana y TTS. La tecla de volumen la verifiqué con eventos de tecla simulados por `adb`; la pulsación física con el equipo en mano es parte de la validación final. No medí precisión del reconocimiento con ruido o viento reales de campo.
 
 ## Stack y por qué
 
@@ -70,7 +70,7 @@ Con conexión el turno lo interpreta un LLM de OpenAI con tool calling; sin cone
 - **Timeouts:** 4 s para interpretar y 2,5 s para redactar la respuesta. La redacción (≤ 20 palabras, rioplatense, números solo del resultado) corre únicamente para resultados `ok`; si no llega, se usa la plantilla.
 - **Los rechazos y las repreguntas nunca los redacta el LLM:** llevan siempre el texto de plantilla con los números reales ("En el lote 3 hay 5 vaquillonas, no 40. No registré nada."). Una redacción no puede sonar a confirmación de algo que no se guardó.
 - **Confirmación de lluvias > 150 mm en el motor, no en el prompt.** Aplica a las dos vías y solo vale como respuesta a la confirmación vigente, para el mismo valor que se preguntó.
-- **Badge de modo:** `IA`, `SEÑAL DÉBIL` (el LLM falló, tardó o devolvió algo inválido y ese turno se resolvió local), `LOCAL` (sin key o key rechazada) y `OFFLINE`.
+- **Badge de modo:** `IA`, `SEÑAL DÉBIL` (el pedido al LLM no llegó o tardó más que el timeout y ese turno se resolvió local), `LOCAL` (sin key, key rechazada, o el LLM contestó con un error HTTP o una salida inválida) y `OFFLINE`.
 - **Key rechazada (401/403):** la app deja de llamar al LLM por el resto de la sesión (reintentar solo agrega una ida y vuelta fallida por turno) y pasa a `LOCAL`.
 - **Parser local:** reglas sobre el texto normalizado (números en dígitos y en palabras hasta 599, punto de miles es-AR, fechas relativas, alias del reconocedor). **Ante la duda no escribe**: pide el dato o muestra ayuda, porque un falso positivo de escritura es la falla más cara.
 
@@ -111,7 +111,8 @@ La key de la demo solo lista `gpt-3.5-turbo` y `gpt-4o-mini`, así que los model
 | Micrófono denegado | Botón gris "Activar micrófono" y campo de texto abierto. Si Android ya no deja pedir el permiso, abre Ajustes; al volver, se chequea de nuevo |
 | Sin red | Badge `OFFLINE`, parser local y reconocimiento on-device |
 | Sin señal y sin modelo de español en el reconocedor | Recién cuando el reconocimiento falla por eso (no al arrancar): aviso con botón "Descargar" en Android 13+ o con los pasos manuales en Android 12 o anterior, y campo de texto abierto. En teléfonos cuyo reconocedor ignora los paquetes bajados a mano (como la tablet de prueba), el texto es el respaldo real |
-| LLM lento, con error o salida inválida | Ese turno va al parser local y el badge dice `SEÑAL DÉBIL` |
+| LLM lento o sin conexión con el servicio | Ese turno va al parser local y el badge dice `SEÑAL DÉBIL` |
+| LLM con error HTTP (429, 5xx) o salida inválida | Ese turno va al parser local y el badge pasa a `LOCAL` hasta el próximo turno con IA: no es un problema de señal |
 | Key vencida o sin acceso (401/403) | LLM apagado por la sesión, badge `LOCAL` |
 | Sin reconocedor en el teléfono | Aviso y campo de texto |
 | No se oyó nada | "No te escuché, probá de nuevo" y vuelve a inactivo |
@@ -121,8 +122,10 @@ La key de la demo solo lista `gpt-3.5-turbo` y `gpt-4o-mini`, así que los model
 | Lote inexistente, o destino igual al origen (al mover) | Repregunta de ese lote |
 | Lluvia de más de 150 mm | Pregunta si es correcto antes de registrar |
 | Error del usuario | Deshacer por botón o por voz |
+| Deshacer con una repregunta abierta | Cancela la repregunta ("Listo, lo dejamos ahí") y no anula ningún registro anterior, con las dos vías de interpretación |
+| Cantidad en cero ("llovieron 0 mm", "pasé 0 vacas") | Vuelve a preguntar ese dato y no registra nada |
 | Sin voz de síntesis en español | Subtítulos y tarjeta muestran todo |
-| App a segundo plano | Corta reconocimiento y voz, vuelve a inactivo |
+| App a segundo plano | Corta la escucha y la voz, y no reabre el micrófono mientras no esté en primer plano |
 | Toques durante "Pensando" | Se ignoran (también Deshacer y restaurar demo) |
 | Error al guardar | Tarjeta "Algo falló: no registré nada" |
 
