@@ -82,6 +82,12 @@ export function monthRangeOf(iso: string, today: string): DateRange {
   return { from: toISODate(new Date(d.getFullYear(), d.getMonth(), 1)), to: last < today ? last : today, label: `en ${MONTHS[d.getMonth()]}` };
 }
 
+// Estrictamente anterior a hoy: "el martes" dicho un martes es el de la semana pasada.
+export function lastWeekday(weekday: number, today: string): string {
+  const daysBack = ((fromISODate(today).getDay() - weekday + 6) % 7) + 1;
+  return addDays(today, -daysBack);
+}
+
 export type RelativeDayWord = 'hoy' | 'anoche' | 'ayer' | 'anteayer';
 
 export function resolveRelativeDay(word: RelativeDayWord, today: string): string {

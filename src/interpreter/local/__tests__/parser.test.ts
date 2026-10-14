@@ -57,6 +57,21 @@ describe('parseLocal: respuestas a repreguntas', () => {
     expect(parseLocal(text, movePending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
   });
 
+  it('"borrá eso" con un pendiente lo descarta en vez de anular un registro viejo', () => {
+    expect(parseLocal('borrá eso', movePending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
+  });
+
+  it('una frase con palabras ajenas no completa el slot', () => {
+    const mmPending: PendingInfo = { intent: { tool: 'registrar_lluvia', args: { fecha: '2026-10-12' } }, missing: 'mm' };
+    expect(parseLocal('dame 2 minutos', movePending, FIXTURE_TODAY)).toEqual({ kind: 'unknown' });
+    expect(parseLocal('esperá 5 minutos', mmPending, FIXTURE_TODAY)).toEqual({ kind: 'unknown' });
+  });
+
+  it('"unos 18" completa los milímetros', () => {
+    const mmPending: PendingInfo = { intent: { tool: 'registrar_lluvia', args: { fecha: '2026-10-12' } }, missing: 'mm' };
+    expect(parseLocal('unos 18', mmPending, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'registrar_lluvia', args: { fecha: '2026-10-12', mm: 18 } } });
+  });
+
   it('un pedido nuevo de otra herramienta reemplaza al pendiente', () => {
     expect(parseLocal('¿Cuánto llovió este mes?', movePending, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'consultar_lluvia', args: { periodo: 'mes' } } });
   });
@@ -67,5 +82,26 @@ describe('parseLocal: respuestas a repreguntas', () => {
 
   it('sin pendiente, "del 3" no significa nada', () => {
     expect(parseLocal('del 3', null, FIXTURE_TODAY)).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('parseLocal: números que no son milímetros ni cantidades', () => {
+  it('una hora no son milímetros', () => {
+    expect(parseLocal('Llovieron a las 5', null, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'registrar_lluvia', args: {} } });
+  });
+
+  it('una duración no son milímetros', () => {
+    expect(parseLocal('Llovieron 2 horas', null, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'registrar_lluvia', args: {} } });
+  });
+
+  it('los días de "hace N días" no son la cantidad de animales', () => {
+    expect(parseLocal('Pasé vaquillonas del 3 al 5 hace dos días', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5, fecha: '2026-10-11' } },
+    });
+  });
+
+  it('"hace N días" con un verbo que no es de escritura es una consulta', () => {
+    expect(parseLocal('¿Llovió hace tres días?', null, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'consultar_lluvia', args: { periodo: 'mes' } } });
   });
 });

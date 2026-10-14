@@ -1,4 +1,4 @@
-import { addDays, describeDay, formatLongDate, formatShortDate, isValidISODate, monthRangeOf, periodRange, resolveRelativeDay, toISODate } from '../dates';
+import { addDays, describeDay, formatLongDate, formatShortDate, isValidISODate, lastWeekday, monthRangeOf, periodRange, resolveRelativeDay, toISODate } from '../dates';
 
 describe('fechas', () => {
   it('formatea fechas locales como YYYY-MM-DD', () => {
@@ -55,5 +55,17 @@ describe('fechas', () => {
     expect(monthRangeOf('2026-10-31', '2026-11-01')).toEqual({ from: '2026-10-01', to: '2026-10-31', label: 'en octubre' });
     expect(monthRangeOf('2026-10-02', '2026-10-13')).toEqual({ from: '2026-10-01', to: '2026-10-13', label: 'en octubre' });
     expect(monthRangeOf('2028-02-10', '2028-03-05')).toEqual({ from: '2028-02-01', to: '2028-02-29', label: 'en febrero' });
+  });
+
+  it('el último día de la semana es estrictamente anterior a hoy', () => {
+    expect(lastWeekday(0, '2026-10-13')).toBe('2026-10-11');
+    expect(lastWeekday(1, '2026-10-13')).toBe('2026-10-12');
+    expect(lastWeekday(3, '2026-10-13')).toBe('2026-10-07');
+    expect(lastWeekday(2, '2026-10-13')).toBe('2026-10-06');
+  });
+
+  it('el último día de la semana cruza meses y años', () => {
+    expect(lastWeekday(5, '2026-10-01')).toBe('2026-09-25');
+    expect(lastWeekday(4, '2027-01-01')).toBe('2026-12-31');
   });
 });

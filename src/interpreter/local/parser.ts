@@ -1,16 +1,20 @@
 import { categoryFromWord } from '@/domain/categories';
-import { RelativeDayWord, resolveRelativeDay } from '@/domain/dates';
+import { addDays, lastWeekday, RelativeDayWord, resolveRelativeDay } from '@/domain/dates';
 import { Category } from '@/domain/types';
 import { cleanArgs, mergeIntent, withArgs } from '@/tools/intent';
 import { Intent, ToolArgs } from '@/tools/schemas';
 import { PendingInfo } from '@/tools/types';
 import { tokenize } from './normalize';
-import { findNumbers, readNumberAt } from './numbers';
+import { findNumbers, NumberMatch, readNumberAt } from './numbers';
 
 export type LocalParse = { kind: 'intent'; intent: Intent } | { kind: 'cancel' } | { kind: 'unknown' };
 
-const RAIN_WORDS = new Set(['llovio', 'llovieron', 'llueve', 'lluvia', 'lluvias', 'cayo', 'cayeron', 'agua', 'milimetro', 'milimetros', 'mm']);
-const RAIN_WRITE_VERBS = new Set(['llovieron', 'cayeron', 'cayo', 'anota', 'anotame', 'registra', 'registrame', 'carga', 'cargame']);
+// "cayo", "cayeron" y "agua" solos son ambiguos ("se cayó el alambrado", "el agua del bebedero"): solo cuentan juntos.
+const RAIN_SIGNALS = new Set(['llovio', 'llovieron', 'llueve', 'lluvia', 'lluvias', 'milimetro', 'milimetros', 'mm']);
+const RAIN_FALL_VERBS = new Set(['cayo', 'cayeron']);
+const RAIN_VERBS = new Set(['llovio', 'llovieron', 'cayo', 'cayeron']);
+const RAIN_FILLERS = new Set(['como', 'unos', 'unas', 'mas', 'o', 'menos', 'de']);
+const RAIN_WRITE_VERBS = new Set(['llovieron', 'cayeron', 'anota', 'anotame', 'registra', 'registrame', 'carga', 'cargame']);
 const RAIN_COMPARISON = new Set(['mas', 'menos']);
 const QUANTITY_QUESTION = new Set(['cuanto', 'cuanta', 'cuantos', 'cuantas']);
 const STOCK_QUESTION = new Set(['hay', 'tengo', 'quedan', 'quedaron']);
@@ -23,6 +27,12 @@ const FROM_WORDS = new Set(['del', 'de', 'desde']);
 const TO_WORDS = new Set(['al', 'a', 'hacia', 'para']);
 const LOT_WORDS = new Set(['lote', 'potrero']);
 const ALL_WORDS = new Set(['todas', 'todos']);
+const TIME_UNITS = new Set(['dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'ano', 'anos', 'mes', 'meses']);
+const WEEKDAYS = new Map([['domingo', 0], ['lunes', 1], ['martes', 2], ['miercoles', 3], ['jueves', 4], ['viernes', 5], ['sabado', 6]]);
+const ANSWER_FILLERS = new Set([
+  'del', 'de', 'desde', 'al', 'a', 'el', 'la', 'las', 'los', 'lote', 'potrero', 'mm', 'milimetro', 'milimetros',
+  'son', 'eran', 'fueron', 'unos', 'unas', 'como', 'y', 'todas', 'todos', 'si',
+]);
 const UNDO = /\b(borra|borrar|borralo|deshace|deshacer|deshacelo|anula|anular|anulalo|me equivoque)\b/;
 const CANCEL = /\b(cancela|cancelar|cancelalo|olvidate|dejalo|no importa)\b/;
 const AFFIRM = /^(si|dale|correcto|confirmo|exacto|asi es)\b/;
@@ -36,7 +46,9 @@ export function parseLocal(text: string, pending: PendingInfo | null, today: str
     return { kind: 'intent', intent: withArgs(pending.intent, { confirmado: true }) };
   }
   if (pending && (sentence === 'no' || CANCEL.test(sentence))) return { kind: 'cancel' };
-  if (UNDO.test(sentence)) return { kind: 'intent', intent: { tool: 'deshacer_ultimo', args: {} } };
+  if (UNDO.test(sentence)) {
+    return pending ? { kind: 'cancel' } : { kind: 'intent', intent: { tool: 'deshacer_ultimo', args: {} } };
+  }
 
   const fresh = parseFresh(tokens, today);
   if (fresh) return { kind: 'intent', intent: pending ? mergeIntent(pending.intent, fresh) : fresh };
@@ -50,12 +62,18 @@ export function parseLocal(text: string, pending: PendingInfo | null, today: str
 function parseFresh(tokens: string[], today: string): Intent | null {
   const has = (set: Set<string>) => tokens.some((t) => set.has(t));
   if (has(MOVE_VERBS)) return { tool: 'mover_animales', args: parseMove(tokens, today) };
-  if (has(RAIN_WORDS)) {
-    const noNumbers = findNumbers(tokens).length === 0;
-    const isQuery = has(QUANTITY_QUESTION) || has(RAIN_COMPARISON) || (noNumbers && !has(RAIN_WRITE_VERBS));
+  if (has(RAIN_SIGNALS) || (has(RAIN_FALL_VERBS) && tokens.includes('agua'))) {
+    const mm = findMm(tokens);
+    const explicitWrite = has(RAIN_WRITE_VERBS);
+    const isQuery =
+      has(QUANTITY_QUESTION) ||
+      has(RAIN_COMPARISON) ||
+      tokens.includes('ultimos') ||
+      (readDaysAgo(tokens) !== null && !explicitWrite) ||
+      (mm === undefined && !explicitWrite);
     return isQuery
       ? { tool: 'consultar_lluvia', args: parseRainPeriod(tokens) }
-      : { tool: 'registrar_lluvia', args: parseRainWrite(tokens, today) };
+      : { tool: 'registrar_lluvia', args: cleanArgs({ mm, fecha: findRelativeDay(tokens, today) }) };
   }
   const category = findCategory(tokens);
   const lot = findLotRef(tokens);
@@ -74,6 +92,14 @@ function findCategory(tokens: string[]): { category: Category; index: number } |
   return null;
 }
 
+function readDaysAgo(tokens: string[]): number | null {
+  const i = tokens.indexOf('hace');
+  if (i < 0) return null;
+  const n = readNumberAt(tokens, i + 1, { allowArticles: true });
+  if (!n || !Number.isInteger(n.value) || (tokens[n.end] !== 'dia' && tokens[n.end] !== 'dias')) return null;
+  return n.value;
+}
+
 function findRelativeDay(tokens: string[], today: string): string | undefined {
   const sentence = tokens.join(' ');
   let word: RelativeDayWord | undefined;
@@ -81,10 +107,24 @@ function findRelativeDay(tokens: string[], today: string): string | undefined {
   else if (tokens.includes('anoche')) word = 'anoche';
   else if (tokens.includes('ayer')) word = 'ayer';
   else if (tokens.includes('hoy')) word = 'hoy';
-  return word ? resolveRelativeDay(word, today) : undefined;
+  if (word) return resolveRelativeDay(word, today);
+
+  const daysAgo = readDaysAgo(tokens);
+  if (daysAgo !== null) return addDays(today, -daysAgo);
+  const weekday = tokens.map((t) => WEEKDAYS.get(t)).find((d) => d !== undefined);
+  if (weekday !== undefined) return lastWeekday(weekday, today);
+  const tomorrow = tokens.indexOf('manana');
+  // "esta mañana" y "a la mañana" son la parte del día de hoy; "mañana" a secas es el día siguiente (la herramienta lo rechaza).
+  if (tomorrow >= 0) return ['esta', 'la'].includes(tokens[tomorrow - 1]) ? today : addDays(today, 1);
+  return undefined;
 }
 
-// Lee "[el|la] [lote] N" después de la preposición en la posición i.
+// Un número que mide tiempo ("dos días", "las 5") no es una cantidad ni milímetros.
+function isPlainCount(tokens: string[], n: NumberMatch): boolean {
+  return !TIME_UNITS.has(tokens[n.end]) && tokens[n.start - 1] !== 'las';
+}
+
+// El artículo y "lote" son opcionales porque por voz se dice "del 3 al 5" igual que "del lote 3 al lote 5".
 function lotAfter(tokens: string[], i: number): { value: number; end: number } | null {
   let j = i + 1;
   if (tokens[j] === 'el' || tokens[j] === 'la') j++;
@@ -142,7 +182,7 @@ function parseLots(tokens: string[]): { origin?: number; dest?: number; lotToken
 function parseMove(tokens: string[], today: string): ToolArgs<'mover_animales'> {
   const { origin, dest, lotTokens } = parseLots(tokens);
   const category = findCategory(tokens);
-  const numbers = findNumbers(tokens).filter((n) => !lotTokens.has(n.start) && Number.isInteger(n.value));
+  const numbers = findNumbers(tokens).filter((n) => !lotTokens.has(n.start) && Number.isInteger(n.value) && isPlainCount(tokens, n));
   const beforeCategory = category ? numbers.find((n) => n.end === category.index) : undefined;
   let cantidad: number | 'todas' | undefined = (beforeCategory ?? numbers[0])?.value;
   const articleBeforeCategory = category !== null && ['los', 'las'].includes(tokens[category.index - 1]);
@@ -156,11 +196,26 @@ function parseMove(tokens: string[], today: string): ToolArgs<'mover_animales'> 
   });
 }
 
-function parseRainWrite(tokens: string[], today: string): ToolArgs<'registrar_lluvia'> {
-  const numbers = findNumbers(tokens);
-  const unitIndex = tokens.findIndex((t) => t === 'mm' || t.startsWith('milimetro'));
-  const mm = (numbers.find((n) => n.end === unitIndex) ?? numbers[0])?.value;
-  return cleanArgs({ mm, fecha: findRelativeDay(tokens, today) });
+function isMmUnit(token: string | undefined): boolean {
+  return token === 'mm' || (token !== undefined && token.startsWith('milimetro'));
+}
+
+// Sin unidad ni verbo de lluvia pegado al número no hay forma de saber que son milímetros: mejor repreguntar que adivinar.
+function findMm(tokens: string[]): number | undefined {
+  const counts = findNumbers(tokens).filter((n) => isPlainCount(tokens, n));
+  const beforeUnit = counts.find((n) => isMmUnit(tokens[n.end]));
+  if (beforeUnit) return beforeUnit.value;
+
+  // parseLots toma "de treinta" por un lote en "lluvia de treinta milímetros": el filtro de lotes solo corre sin unidad.
+  const { lotTokens } = parseLots(tokens);
+  for (let v = 0; v < tokens.length; v++) {
+    if (!RAIN_VERBS.has(tokens[v])) continue;
+    let j = v + 1;
+    for (let skipped = 0; skipped < 2 && RAIN_FILLERS.has(tokens[j]); skipped++) j++;
+    const n = readNumberAt(tokens, j);
+    if (n && isPlainCount(tokens, n) && !lotTokens.has(n.start)) return n.value;
+  }
+  return undefined;
 }
 
 function parseRainPeriod(tokens: string[]): ToolArgs<'consultar_lluvia'> {
@@ -177,8 +232,22 @@ function parseRainPeriod(tokens: string[]): ToolArgs<'consultar_lluvia'> {
   return { periodo: 'mes' };
 }
 
+// Una respuesta a una repregunta es solo el dato ("del 3", "unos 18"); si trae otras palabras ("dame 2 minutos") es otra cosa.
+function isPlainAnswer(tokens: string[], allowArticles: boolean): boolean {
+  let i = 0;
+  while (i < tokens.length) {
+    const n = readNumberAt(tokens, i, { allowArticles });
+    if (n) i = n.end;
+    else if (ANSWER_FILLERS.has(tokens[i]) || categoryFromWord(tokens[i])) i++;
+    else return false;
+  }
+  return true;
+}
+
 function fillSlot(tokens: string[], pending: PendingInfo): Intent | null {
-  const first = findNumbers(tokens, { allowArticles: tokens.length <= 2 })[0]?.value;
+  const allowArticles = tokens.length <= 2;
+  if (!isPlainAnswer(tokens, allowArticles)) return null;
+  const first = findNumbers(tokens, { allowArticles })[0]?.value;
   switch (pending.missing) {
     case 'mm':
       return first !== undefined ? withArgs(pending.intent, { mm: first }) : null;
