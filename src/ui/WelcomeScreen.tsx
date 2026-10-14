@@ -29,7 +29,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
     <View style={styles.screen}>
       <View style={[styles.top, !compact && roomy.top, { paddingTop: insets.top + (compact ? 8 : 24) }]}>
         <View style={[styles.gate, !compact && roomy.gate]}>
-          <Image source={require('../../assets/splash-icon.png')} style={[styles.gateImage, !compact && roomy.gateImage]} />
+          <Image source={require('../../assets/tranquera.png')} style={[styles.gateImage, !compact && roomy.gateImage]} />
         </View>
         <Text style={[styles.title, !compact && roomy.title]}>La Tranquera</Text>
         <Text style={[styles.tagline, !compact && roomy.tagline]}>Decile lo que pasó en el campo. Lo anota y te deja el comprobante.</Text>
@@ -60,7 +60,7 @@ export function WelcomeScreen({ onDone }: { onDone: () => void }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   top: { backgroundColor: colors.brand, alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 4 },
-  // El PNG del splash es cuadrado y con aire alrededor de la tranquera: se recorta el sobrante vertical.
+  // El PNG es cuadrado y con aire alrededor de la tranquera: se recorta el sobrante vertical.
   gate: { width: 150, height: 72, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   gateImage: { width: 150, height: 150 },
   title: { fontSize: 32, fontWeight: '900', color: colors.white },
