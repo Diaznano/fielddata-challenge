@@ -1,5 +1,5 @@
 import { categoryFromWord } from '@/domain/categories';
-import { addDays, lastWeekday, RelativeDayWord, resolveRelativeDay } from '@/domain/dates';
+import { addDays, lastWeekday, nextWeekday, RelativeDayWord, resolveRelativeDay } from '@/domain/dates';
 import { Category } from '@/domain/types';
 import { cleanArgs, mergeIntent, withArgs } from '@/tools/intent';
 import { Intent, ToolArgs } from '@/tools/schemas';
@@ -13,7 +13,7 @@ export type LocalParse = { kind: 'intent'; intent: Intent } | { kind: 'cancel' }
 const RAIN_SIGNALS = new Set(['llovio', 'llovieron', 'llueve', 'lluvia', 'lluvias', 'milimetro', 'milimetros', 'mm']);
 const RAIN_FALL_VERBS = new Set(['cayo', 'cayeron']);
 const RAIN_VERBS = new Set(['llovio', 'llovieron', 'cayo', 'cayeron']);
-const RAIN_FILLERS = new Set(['como', 'unos', 'unas', 'mas', 'o', 'menos', 'de']);
+const RAIN_FILLERS = new Set(['como', 'unos', 'unas', 'o', 'de']);
 const RAIN_WRITE_VERBS = new Set(['llovieron', 'cayeron', 'anota', 'anotame', 'registra', 'registrame', 'carga', 'cargame']);
 const RAIN_COMPARISON = new Set(['mas', 'menos']);
 const QUANTITY_QUESTION = new Set(['cuanto', 'cuanta', 'cuantos', 'cuantas']);
@@ -27,10 +27,10 @@ const FROM_WORDS = new Set(['del', 'de', 'desde']);
 const TO_WORDS = new Set(['al', 'a', 'hacia', 'para']);
 const LOT_WORDS = new Set(['lote', 'potrero']);
 const ALL_WORDS = new Set(['todas', 'todos']);
-const TIME_UNITS = new Set(['dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'ano', 'anos', 'mes', 'meses']);
+const MEASURE_UNITS = new Set(['dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'ano', 'anos', 'mes', 'meses', 'kilo', 'kilos', 'kg']);
 const WEEKDAYS = new Map([['domingo', 0], ['lunes', 1], ['martes', 2], ['miercoles', 3], ['jueves', 4], ['viernes', 5], ['sabado', 6]]);
 const ANSWER_FILLERS = new Set([
-  'del', 'de', 'desde', 'al', 'a', 'el', 'la', 'las', 'los', 'lote', 'potrero', 'mm', 'milimetro', 'milimetros',
+  'del', 'de', 'desde', 'al', 'a', 'el', 'la', 'las', 'los', 'lote', 'potrero',
   'son', 'eran', 'fueron', 'unos', 'unas', 'como', 'y', 'todas', 'todos', 'si',
 ]);
 const UNDO = /\b(borra|borrar|borralo|deshace|deshacer|deshacelo|anula|anular|anulalo|me equivoque)\b/;
@@ -111,17 +111,36 @@ function findRelativeDay(tokens: string[], today: string): string | undefined {
 
   const daysAgo = readDaysAgo(tokens);
   if (daysAgo !== null) return addDays(today, -daysAgo);
-  const weekday = tokens.map((t) => WEEKDAYS.get(t)).find((d) => d !== undefined);
-  if (weekday !== undefined) return lastWeekday(weekday, today);
+  const weekdayDate = findWeekdayDate(tokens, today);
+  if (weekdayDate) return weekdayDate;
   const tomorrow = tokens.indexOf('manana');
-  // "esta mañana" y "a la mañana" son la parte del día de hoy; "mañana" a secas es el día siguiente (la herramienta lo rechaza).
-  if (tomorrow >= 0) return ['esta', 'la'].includes(tokens[tomorrow - 1]) ? today : addDays(today, 1);
+  // "esta mañana", "a la mañana", "de mañana" y "a media mañana" son la parte del día de hoy; "mañana" a secas es el día siguiente (la herramienta lo rechaza).
+  if (tomorrow >= 0) return ['esta', 'la', 'de', 'media'].includes(tokens[tomorrow - 1]) ? today : addDays(today, 1);
   return undefined;
 }
 
-// Un número que mide tiempo ("dos días", "las 5") no es una cantidad ni milímetros.
-function isPlainCount(tokens: string[], n: NumberMatch): boolean {
-  return !TIME_UNITS.has(tokens[n.end]) && tokens[n.start - 1] !== 'las';
+function findWeekdayDate(tokens: string[], today: string): string | undefined {
+  for (let i = 0; i < tokens.length; i++) {
+    const weekday = WEEKDAYS.get(tokens[i]);
+    if (weekday === undefined) continue;
+    const upcoming = tokens[i - 1] === 'proximo' || tokens[i - 1] === 'proxima' || (tokens[i + 1] === 'que' && tokens[i + 2] === 'viene');
+    return upcoming ? nextWeekday(weekday, today) : lastWeekday(weekday, today);
+  }
+  return undefined;
+}
+
+// Un número seguido de una unidad ("dos días", "2 años", "200 kilos") mide otra cosa: no es cantidad de animales ni milímetros.
+function isMeasured(tokens: string[], n: NumberMatch): boolean {
+  return MEASURE_UNITS.has(tokens[n.end]);
+}
+
+// En una lluvia, "las 5" es una hora; en un movimiento "las 40 vaquillonas" es la cantidad y solo "a las N" es una hora.
+function isMmCandidate(tokens: string[], n: NumberMatch): boolean {
+  return !isMeasured(tokens, n) && tokens[n.start - 1] !== 'las';
+}
+
+function isClockTime(tokens: string[], n: NumberMatch): boolean {
+  return tokens[n.start - 1] === 'las' && tokens[n.start - 2] === 'a';
 }
 
 // El artículo y "lote" son opcionales porque por voz se dice "del 3 al 5" igual que "del lote 3 al lote 5".
@@ -159,7 +178,7 @@ function parseLots(tokens: string[]): { origin?: number; dest?: number; lotToken
     const isTo = TO_WORDS.has(tokens[i]);
     if (!isFrom && !isTo) continue;
     const lot = lotAfter(tokens, i);
-    if (!lot) continue;
+    if (!lot || MEASURE_UNITS.has(tokens[lot.end])) continue;
     if (isFrom && origin === undefined) {
       origin = lot.value;
       mark(i, lot.end);
@@ -182,9 +201,9 @@ function parseLots(tokens: string[]): { origin?: number; dest?: number; lotToken
 function parseMove(tokens: string[], today: string): ToolArgs<'mover_animales'> {
   const { origin, dest, lotTokens } = parseLots(tokens);
   const category = findCategory(tokens);
-  const numbers = findNumbers(tokens).filter((n) => !lotTokens.has(n.start) && Number.isInteger(n.value) && isPlainCount(tokens, n));
+  const numbers = findNumbers(tokens).filter((n) => !lotTokens.has(n.start) && Number.isInteger(n.value) && !isMeasured(tokens, n));
   const beforeCategory = category ? numbers.find((n) => n.end === category.index) : undefined;
-  let cantidad: number | 'todas' | undefined = (beforeCategory ?? numbers[0])?.value;
+  let cantidad: number | 'todas' | undefined = (beforeCategory ?? numbers.find((n) => !isClockTime(tokens, n)))?.value;
   const articleBeforeCategory = category !== null && ['los', 'las'].includes(tokens[category.index - 1]);
   if (cantidad === undefined && (tokens.some((t) => ALL_WORDS.has(t)) || articleBeforeCategory)) cantidad = 'todas';
   return cleanArgs({
@@ -202,7 +221,7 @@ function isMmUnit(token: string | undefined): boolean {
 
 // Sin unidad ni verbo de lluvia pegado al número no hay forma de saber que son milímetros: mejor repreguntar que adivinar.
 function findMm(tokens: string[]): number | undefined {
-  const counts = findNumbers(tokens).filter((n) => isPlainCount(tokens, n));
+  const counts = findNumbers(tokens).filter((n) => isMmCandidate(tokens, n));
   const beforeUnit = counts.find((n) => isMmUnit(tokens[n.end]));
   if (beforeUnit) return beforeUnit.value;
 
@@ -213,7 +232,7 @@ function findMm(tokens: string[]): number | undefined {
     let j = v + 1;
     for (let skipped = 0; skipped < 2 && RAIN_FILLERS.has(tokens[j]); skipped++) j++;
     const n = readNumberAt(tokens, j);
-    if (n && isPlainCount(tokens, n) && !lotTokens.has(n.start)) return n.value;
+    if (n && isMmCandidate(tokens, n) && !lotTokens.has(n.start)) return n.value;
   }
   return undefined;
 }
@@ -233,10 +252,10 @@ function parseRainPeriod(tokens: string[]): ToolArgs<'consultar_lluvia'> {
 }
 
 // Una respuesta a una repregunta es solo el dato ("del 3", "unos 18"); si trae otras palabras ("dame 2 minutos") es otra cosa.
-function isPlainAnswer(tokens: string[], allowArticles: boolean): boolean {
+function isPlainAnswer(tokens: string[]): boolean {
   let i = 0;
   while (i < tokens.length) {
-    const n = readNumberAt(tokens, i, { allowArticles });
+    const n = readNumberAt(tokens, i, { allowArticles: true });
     if (n) i = n.end;
     else if (ANSWER_FILLERS.has(tokens[i]) || categoryFromWord(tokens[i])) i++;
     else return false;
@@ -245,9 +264,8 @@ function isPlainAnswer(tokens: string[], allowArticles: boolean): boolean {
 }
 
 function fillSlot(tokens: string[], pending: PendingInfo): Intent | null {
-  const allowArticles = tokens.length <= 2;
-  if (!isPlainAnswer(tokens, allowArticles)) return null;
-  const first = findNumbers(tokens, { allowArticles })[0]?.value;
+  if (!isPlainAnswer(tokens)) return null;
+  const first = findNumbers(tokens, { allowArticles: tokens.length <= 2 })[0]?.value;
   switch (pending.missing) {
     case 'mm':
       return first !== undefined ? withArgs(pending.intent, { mm: first }) : null;
@@ -261,11 +279,12 @@ function fillSlot(tokens: string[], pending: PendingInfo): Intent | null {
     case 'lote_origen':
     case 'lote_destino': {
       const { origin, dest } = parseLots(tokens);
-      const extra: Record<string, number> = {};
-      if (origin !== undefined) extra.lote_origen = origin;
-      if (dest !== undefined) extra.lote_destino = dest;
-      if (Object.keys(extra).length === 0 && first !== undefined) extra[pending.missing] = first;
-      return Object.keys(extra).length > 0 ? withArgs(pending.intent, extra) : null;
+      const directional = tokens.some((t) => FROM_WORDS.has(t) || TO_WORDS.has(t));
+      // Sin preposición ("el lote 5", "el 3") parseLots manda el único lote a origen: acá es el slot que faltaba, y no debe pisar el otro.
+      const extra = directional && (origin !== undefined || dest !== undefined)
+        ? { lote_origen: origin, lote_destino: dest }
+        : { [pending.missing]: origin ?? first };
+      return Object.values(extra).some((v) => v !== undefined) ? withArgs(pending.intent, extra) : null;
     }
     case 'confirmacion':
       return null;

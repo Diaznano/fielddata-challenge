@@ -88,6 +88,11 @@ export function lastWeekday(weekday: number, today: string): string {
   return addDays(today, -daysBack);
 }
 
+export function nextWeekday(weekday: number, today: string): string {
+  const daysAhead = ((weekday - fromISODate(today).getDay() + 6) % 7) + 1;
+  return addDays(today, daysAhead);
+}
+
 export type RelativeDayWord = 'hoy' | 'anoche' | 'ayer' | 'anteayer';
 
 export function resolveRelativeDay(word: RelativeDayWord, today: string): string {

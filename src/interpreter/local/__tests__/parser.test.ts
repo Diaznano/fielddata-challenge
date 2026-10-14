@@ -57,6 +57,37 @@ describe('parseLocal: respuestas a repreguntas', () => {
     expect(parseLocal(text, movePending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
   });
 
+  it.each(['del lote uno', 'el lote uno', 'lote uno'])('"%s" completa el lote de origen con un "uno" en palabras', (text) => {
+    expect(parseLocal(text, movePending, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_destino: 5, lote_origen: 1 } },
+    });
+  });
+
+  it('"al lote uno" completa el lote de destino', () => {
+    const pending: PendingInfo = { intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3 } }, missing: 'lote_destino' };
+    expect(parseLocal('al lote uno', pending, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 1 } },
+    });
+  });
+
+  it.each(['el lote 5', 'lote 5', 'el 5', '5', 'al 5'])('"%s" completa el destino sin pisar el origen', (text) => {
+    const pending: PendingInfo = { intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3 } }, missing: 'lote_destino' };
+    expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
+    });
+  });
+
+  it('"del lote uno al dos" completa origen y destino', () => {
+    const pending: PendingInfo = { intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas' } }, missing: 'lote_origen' };
+    expect(parseLocal('del lote uno al dos', pending, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 1, lote_destino: 2 } },
+    });
+  });
+
   it('"borrá eso" con un pendiente lo descarta en vez de anular un registro viejo', () => {
     expect(parseLocal('borrá eso', movePending, FIXTURE_TODAY)).toEqual({ kind: 'cancel' });
   });
@@ -103,5 +134,49 @@ describe('parseLocal: números que no son milímetros ni cantidades', () => {
 
   it('"hace N días" con un verbo que no es de escritura es una consulta', () => {
     expect(parseLocal('¿Llovió hace tres días?', null, FIXTURE_TODAY)).toEqual({ kind: 'intent', intent: { tool: 'consultar_lluvia', args: { periodo: 'mes' } } });
+  });
+
+  it('"las N" delante de la categoría es la cantidad, no una hora', () => {
+    expect(parseLocal('Pasé las 70 vacas del 1 al 2', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 70, categoria: 'vacas', lote_origen: 1, lote_destino: 2 } },
+    });
+  });
+
+  it('"a las N" sin categoría pegada es una hora y no la cantidad', () => {
+    expect(parseLocal('A las 5 pasamos vacas del 1 al 2', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vacas', lote_origen: 1, lote_destino: 2 } },
+    });
+  });
+
+  it('el peso de los animales no es la cantidad ni un lote', () => {
+    expect(parseLocal('Pasé vaquillonas de 200 kilos del 3 al 5', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
+    });
+  });
+});
+
+describe('parseLocal: partes del día y días de la semana', () => {
+  it('"a media mañana" es hoy', () => {
+    expect(parseLocal('Llovieron 10 mm a media mañana', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'registrar_lluvia', args: { mm: 10, fecha: '2026-10-13' } },
+    });
+  });
+
+  it('"el próximo lunes" es futuro', () => {
+    expect(parseLocal('El próximo lunes pasamos 20 vacas del 1 al 2', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 20, categoria: 'vacas', lote_origen: 1, lote_destino: 2, fecha: '2026-10-19' } },
+    });
+  });
+
+  it('un día de la semana a secas es el último que pasó', () => {
+    expect(parseLocal('El lunes llovieron 12 mm', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'registrar_lluvia', args: { mm: 12, fecha: '2026-10-12' } },
+    });
   });
 });
