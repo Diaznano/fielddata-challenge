@@ -56,7 +56,7 @@ export function HomeScreen({ store, interpret, phrase }: Props) {
         <Subtitles user={agent.partial || agent.lastUser} app={agent.lastReply} />
         {summary && summary.records.length > 0 ? <History records={summary.records} /> : null}
       </ScrollView>
-      <TextFallback expanded={agent.mic.status === 'blocked'} disabled={thinking} onSubmit={agent.submitText} />
+      <TextFallback expanded={agent.mic.status === 'blocked' || agent.notice !== null} disabled={thinking} onSubmit={agent.submitText} />
       <MicButton status={agent.mic.status} onPress={agent.onMicPress} />
     </SafeAreaView>
   );

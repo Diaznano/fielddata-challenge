@@ -14,7 +14,8 @@ import { toISODate } from '@/domain/dates';
 import { EventSource, Farm } from '@/domain/types';
 import { isOnline, subscribeOnline } from '@/platform/network';
 import { Card, CardTone } from '@/tools';
-import { abortListening, MAX_LISTEN_MS, MicPermission, micPermission, requestMic, startListening, stopListening, SttCapabilities, sttCapabilities } from './stt';
+import { abortListening, MAX_LISTEN_MS, micPermission, requestMic, startListening, stopListening, SttCapabilities, sttCapabilities } from './stt';
+import { bestTranscript } from './transcript';
 import { initTts, speak, stopSpeaking } from './tts';
 
 export interface Notice {
@@ -30,6 +31,9 @@ interface AgentOptions {
 }
 
 const REOPEN_MIC_MS = 300;
+const NOTICE_NETWORK = 'Sin señal no puedo reconocer la voz. Escribí abajo y lo registro igual.';
+const NOTICE_NO_SPANISH = 'Este teléfono no tiene el reconocimiento de voz en español disponible. Escribí abajo y lo registro igual.';
+const NOTICE_GENERIC = 'No pude escucharte. Probá de nuevo o escribí abajo.';
 
 function feedback(tone: CardTone): void {
   if (tone === 'registro') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -39,7 +43,6 @@ function feedback(tone: CardTone): void {
 
 export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) {
   const [mic, dispatch] = useReducer(micReducer, initialMic);
-  const [permission, setPermission] = useState<MicPermission>('granted');
   const [partial, setPartial] = useState('');
   const [lastUser, setLastUser] = useState('');
   const [lastReply, setLastReply] = useState('');
@@ -51,8 +54,12 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   const conversation = useRef<ConversationState>(initialConversation);
   const caps = useRef<SttCapabilities>({ available: true, onDeviceLocale: null });
   const listenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gotFinal = useRef(false);
+  const reopenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnInFlight = useRef(false);
+  const utterance = useRef(0);
+  // Por sesión de escucha: la mejor frase oída hasta ahora y si ya se resolvió (enviada, cancelada o fallida), para enviarla una sola vez.
+  const heard = useRef('');
+  const sessionDone = useRef(true);
 
   const deps: TurnDeps = useMemo(
     () => ({ farm, store, interpret, phrase, now: () => new Date(), newId: Crypto.randomUUID }),
@@ -64,12 +71,45 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
     listenTimer.current = null;
   }
 
+  function clearReopenTimer() {
+    if (reopenTimer.current) clearTimeout(reopenTimer.current);
+    reopenTimer.current = null;
+  }
+
+  function closeSession() {
+    sessionDone.current = true;
+    heard.current = '';
+  }
+
+  function blockMic() {
+    dispatch({ type: 'MIC_BLOCKED' });
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  }
+
+  // Solo se aborta una sesión viva: el abort nativo siempre emite "end", y uno tardío cortaría la escucha siguiente.
+  function cancelListening(buzz = true) {
+    clearListenTimer();
+    const active = !sessionDone.current;
+    closeSession();
+    if (!active) return;
+    if (buzz) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    abortListening();
+  }
+
+  // Corta todo lo que esté en curso (escucha, voz, reapertura). El token invalida los callbacks tardíos de la voz cortada.
+  function interrupt() {
+    clearReopenTimer();
+    cancelListening();
+    utterance.current += 1;
+    stopSpeaking();
+    dispatch({ type: 'DONE' });
+  }
+
   async function listen() {
     if (turnInFlight.current) return;
     const result = await requestMic();
-    setPermission(result);
     if (result !== 'granted') {
-      dispatch({ type: 'MIC_BLOCKED' });
+      blockMic();
       return;
     }
     dispatch({ type: 'MIC_ALLOWED' });
@@ -77,7 +117,8 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
       setNotice({ text: 'Este teléfono no tiene el reconocimiento de voz activo. Podés escribir abajo.' });
       return;
     }
-    gotFinal.current = false;
+    sessionDone.current = false;
+    heard.current = '';
     setPartial('');
     startListening({ online: await isOnline(), onDeviceLocale: caps.current.onDeviceLocale });
     clearListenTimer();
@@ -85,11 +126,18 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   }
 
   function say(text: string, reopenMic: boolean) {
+    const id = ++utterance.current;
     setLastReply(text);
     dispatch({ type: 'SPEAK' });
     speak(text, (completed) => {
+      if (id !== utterance.current) return;
       dispatch({ type: 'DONE' });
-      if (reopenMic && completed) setTimeout(() => void handlers.current.listen(), REOPEN_MIC_MS);
+      if (reopenMic && completed) {
+        reopenTimer.current = setTimeout(() => {
+          reopenTimer.current = null;
+          void handlers.current.listen();
+        }, REOPEN_MIC_MS);
+      }
     });
   }
 
@@ -110,6 +158,7 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   async function handleText(text: string, source: EventSource) {
     if (!text.trim() || turnInFlight.current) return;
     turnInFlight.current = true;
+    if (source === 'texto') interrupt();
     dispatch({ type: 'SUBMIT' });
     setLastUser(text);
     setPartial('');
@@ -126,7 +175,10 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   async function undoLast() {
     if (turnInFlight.current) return;
     turnInFlight.current = true;
+    interrupt();
     dispatch({ type: 'SUBMIT' });
+    setLastUser('Deshacer');
+    setPartial('');
     try {
       apply(await runIntentTurn({ tool: 'deshacer_ultimo', args: {} }, 'Deshacer (botón)', conversation.current, deps), 'texto');
     } catch {
@@ -138,30 +190,65 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
 
   async function resetDemo() {
     if (turnInFlight.current) return;
-    const now = new Date();
-    await resetDemoData(store, toISODate(now), now.toISOString(), Crypto.randomUUID);
-    conversation.current = initialConversation;
-    setCard(null);
-    setLastUser('');
-    setLastReply('');
-    setVersion((v) => v + 1);
+    turnInFlight.current = true;
+    interrupt();
+    try {
+      const now = new Date();
+      await resetDemoData(store, toISODate(now), now.toISOString(), Crypto.randomUUID);
+      conversation.current = initialConversation;
+      setCard(null);
+      setLastUser('');
+      setLastReply('');
+      setPartial('');
+      setNotice(null);
+      setLastDegraded(false);
+      setVersion((v) => v + 1);
+    } catch {
+      fail();
+    } finally {
+      turnInFlight.current = false;
+    }
+  }
+
+  // Envía la mejor frase oída, una sola vez por sesión. Devuelve false si no había nada que enviar.
+  function sendHeard(): boolean {
+    if (sessionDone.current || !heard.current) return false;
+    const text = heard.current;
+    closeSession();
+    clearListenTimer();
+    void handlers.current.handleText(text, 'voz');
+    return true;
+  }
+
+  function noHeard() {
+    if (sessionDone.current || sendHeard()) return;
+    closeSession();
+    say('No te escuché, probá de nuevo.', false);
+  }
+
+  // El permiso pudo cambiar desde Ajustes: se consulta antes de decidir si hay que mandar al usuario allá.
+  async function recoverMic() {
+    const permission = await micPermission();
+    if (permission === 'blocked') void Linking.openSettings();
+    else void listen();
   }
 
   function onMicPress() {
+    clearReopenTimer();
     switch (mic.status) {
       case 'idle':
         void listen();
         return;
       case 'listening':
         clearListenTimer();
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         stopListening();
         return;
       case 'speaking':
         stopSpeaking();
         return;
       case 'blocked':
-        if (permission === 'blocked') void Linking.openSettings();
-        else void listen();
+        void recoverMic();
         return;
       case 'thinking':
         return;
@@ -169,39 +256,54 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   }
 
   // Los listeners nativos y el callback del TTS se registran una vez; leen siempre la versión actual.
-  const handlers = useRef({ listen, handleText, say });
-  handlers.current = { listen, handleText, say };
+  const handlers = useRef({ listen, handleText, sendHeard, noHeard });
+  handlers.current = { listen, handleText, sendHeard, noHeard };
 
-  useSpeechRecognitionEvent('start', () => dispatch({ type: 'LISTEN' }));
-  useSpeechRecognitionEvent('result', (event) => {
-    const text = event.results[0]?.transcript ?? '';
-    setPartial(text);
-    if (event.isFinal && text.trim()) {
-      gotFinal.current = true;
-      clearListenTimer();
-      void handlers.current.handleText(text, 'voz');
-    }
+  useSpeechRecognitionEvent('start', () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    dispatch({ type: 'LISTEN' });
   });
+  // Android puede entregar las hipótesis finales en un evento parcial y después un final vacío (evento "nomatch"): se guarda la mejor de cada evento.
+  useSpeechRecognitionEvent('result', (event) => {
+    if (sessionDone.current) return;
+    const best = bestTranscript(event.results);
+    if (best) {
+      heard.current = best;
+      setPartial(best);
+    }
+    if (event.isFinal) handlers.current.sendHeard();
+  });
+  useSpeechRecognitionEvent('nomatch', () => handlers.current.noHeard());
   useSpeechRecognitionEvent('error', (event) => {
     clearListenTimer();
-    if (event.error === 'aborted') return;
-    if (event.error === 'not-allowed') {
-      setPermission('denied');
-      dispatch({ type: 'MIC_BLOCKED' });
-      return;
-    }
-    if (event.error === 'no-speech' || event.error === 'speech-timeout') {
-      gotFinal.current = true;
-      handlers.current.say('No te escuché, probá de nuevo.', false);
-      return;
-    }
-    if (event.error === 'network' || event.error === 'language-not-supported' || event.error === 'service-not-allowed') {
-      setNotice({ text: 'No pude usar el reconocimiento de voz (¿sin señal?). Escribí abajo y lo registro igual.' });
+    switch (event.error) {
+      case 'aborted':
+        return;
+      case 'not-allowed':
+        closeSession();
+        blockMic();
+        return;
+      case 'no-speech':
+      case 'speech-timeout':
+        handlers.current.noHeard();
+        return;
+      case 'network':
+        closeSession();
+        setNotice({ text: NOTICE_NETWORK });
+        return;
+      case 'language-not-supported':
+      case 'service-not-allowed':
+        closeSession();
+        setNotice({ text: NOTICE_NO_SPANISH });
+        return;
+      default:
+        closeSession();
+        setNotice({ text: NOTICE_GENERIC });
     }
   });
   useSpeechRecognitionEvent('end', () => {
     clearListenTimer();
-    if (!gotFinal.current) dispatch({ type: 'STOPPED' });
+    if (!handlers.current.sendHeard()) dispatch({ type: 'STOPPED' });
   });
 
   useEffect(() => {
@@ -211,20 +313,26 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
       caps.current = c;
     });
     void micPermission().then((p) => {
-      setPermission(p);
       if (p === 'blocked') dispatch({ type: 'MIC_BLOCKED' });
     });
     void isOnline().then(setOnline);
     const unsubscribe = subscribeOnline(setOnline);
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') return;
-      clearListenTimer();
-      abortListening();
+      if (state === 'active') {
+        void micPermission().then((p) => {
+          if (p === 'granted') dispatch({ type: 'MIC_ALLOWED' });
+        });
+        return;
+      }
+      clearReopenTimer();
+      cancelListening(false);
       stopSpeaking();
     });
     return () => {
       unsubscribe();
       appState.remove();
+      clearListenTimer();
+      clearReopenTimer();
     };
   }, []);
 
