@@ -81,6 +81,15 @@ function reply(state: ConversationState, meta: TurnMeta, card: Card, speech: str
   return { card, speech, via: meta.via, degraded: meta.degraded, expectsReply, state: { pending, history } };
 }
 
+// La redacción va antes del append y tolera fallas: un rechazo del LLM después de guardar haría que el usuario repita y se duplique el evento.
+async function phraseOrNull(phrase: NonNullable<TurnDeps['phrase']>, userText: string, result: ToolResult): Promise<string | null> {
+  try {
+    return (await phrase(userText, result))?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 async function execute(intent: Intent, source: EventSource, state: ConversationState, deps: TurnDeps, meta: TurnMeta, events: FarmEvent[], now: Date): Promise<TurnOutcome> {
   const result = runTool(intent, {
     farm: deps.farm,
@@ -93,8 +102,8 @@ async function execute(intent: Intent, source: EventSource, state: ConversationS
   if (result.status === 'needs_info') {
     return reply(state, meta, result.card, result.question, { intent: result.partial, missing: result.missing, createdAt: now.getTime() }, true);
   }
+  const phrased = meta.via === 'ia' && deps.phrase ? await phraseOrNull(deps.phrase, meta.text, result) : null;
   if (result.status === 'ok' && result.newEvents.length > 0) await deps.store.append(result.newEvents);
-  const phrased = meta.via === 'ia' && deps.phrase ? await deps.phrase(meta.text, result) : null;
   return reply(state, meta, result.card, phrased ?? result.speech, null);
 }
 
@@ -121,7 +130,7 @@ export async function runTurn(text: string, source: EventSource, state: Conversa
       return reply(state, meta, { tone: 'ayuda', title: 'La Tranquera', lines: [interpretation.text] }, interpretation.text, pending);
     case 'intent': {
       const intent = pending ? mergeIntent(pending.intent, interpretation.intent) : interpretation.intent;
-      return execute(intent, source, { ...state, pending }, deps, meta, events, now);
+      return execute(intent, source, state, deps, meta, events, now);
     }
   }
 }

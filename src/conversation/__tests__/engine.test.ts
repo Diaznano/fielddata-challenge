@@ -116,6 +116,39 @@ describe('runTurn', () => {
     expect(fallback.speech).toBe('Anotado: 5 milímetros hoy. En octubre van 10.');
   });
 
+  describe('redacción del LLM como límite con un servicio externo', () => {
+    const iaLluvia: TurnDeps['interpret'] = async () => ({
+      interpretation: { kind: 'intent', intent: { tool: 'registrar_lluvia', args: { mm: 5 } } },
+      via: 'ia',
+      degraded: false,
+    });
+
+    it('si la redacción rechaza, usa la plantilla y el evento se guarda una sola vez', async () => {
+      const { store, deps } = setup(iaLluvia);
+      const out = await runTurn('cayeron cinco', 'voz', initialConversation, { ...deps, phrase: async () => { throw new Error('timeout'); } });
+      expect(out.speech).toBe('Anotado: 5 milímetros hoy. En octubre van 5.');
+      expect(await store.list()).toHaveLength(1);
+    });
+
+    it('si la redacción viene en blanco, usa la plantilla', async () => {
+      const { deps } = setup(iaLluvia);
+      const out = await runTurn('cayeron cinco', 'voz', initialConversation, { ...deps, phrase: async () => '   ' });
+      expect(out.speech).toBe('Anotado: 5 milímetros hoy. En octubre van 5.');
+    });
+
+    it('redacta antes de guardar, para que el append sea el último paso asíncrono', async () => {
+      const { store, deps } = setup(iaLluvia);
+      let guardadosAlRedactar = -1;
+      const phrase = async () => {
+        guardadosAlRedactar = (await store.list()).length;
+        return 'Cinco milímetros, anotado.';
+      };
+      await runTurn('cayeron cinco', 'voz', initialConversation, { ...deps, phrase });
+      expect(guardadosAlRedactar).toBe(0);
+      expect(await store.list()).toHaveLength(1);
+    });
+  });
+
   it('en modo local no llama a la redacción del LLM', async () => {
     const phrase = jest.fn(async () => 'no debería usarse');
     const { deps } = setup();
