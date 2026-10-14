@@ -4,7 +4,9 @@ Asistente de campo por voz para Android. El productor habla en español rioplate
 
 Funciona **con y sin señal**: con red interpreta con un LLM (OpenAI) y sin red con un parser local. Las dos vías ejecutan las mismas herramientas sobre una base SQLite en el teléfono.
 
-Decisiones, trade-offs y uso de IA: [DECISIONS.md](DECISIONS.md). Manual de uso: [docs/manual-usuario.pdf](docs/manual-usuario.pdf). Video explicativo (90 s): en el [Release](../../releases).
+Decisiones, trade-offs y uso de IA: [DECISIONS.md](DECISIONS.md). Manual de uso: [docs/manual-usuario.pdf](docs/manual-usuario.pdf). Video explicativo (65 s, vertical): en el [Release](../../releases).
+
+Música del video: «Words We Will Remember» (instrumental), de [Josh Woodward](https://www.joshwoodward.com), licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Editada para el video.
 
 ## Instalar el APK
 
