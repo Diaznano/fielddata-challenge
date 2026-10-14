@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { isValidISODate, RAIN_PERIODS } from '@/domain/dates';
 import { CATEGORIES } from '@/domain/types';
 
-const isoDate = z.string().refine(isValidISODate);
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isValidISODate);
 
 export const toolSchemas = {
   registrar_lluvia: z.object({
