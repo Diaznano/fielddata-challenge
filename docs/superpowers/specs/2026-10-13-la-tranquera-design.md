@@ -25,7 +25,7 @@ FieldData ya resuelve esto vía WhatsApp + IA (con cola sin señal y detección 
 5. Manejo de todos los casos de la sección 8.
 6. APK en GitHub Release, README, DECISIONS.md.
 
-**P1**: vía LLM (OpenAI) con respuesta redactada por el LLM · botón de volumen como push-to-talk · sugerir descarga del paquete de voz offline · `cantidad: "todas"`.
+**P1**: vía LLM (OpenAI) con respuesta redactada por el LLM · botón de bajar volumen como push-to-talk (subir volumen sigue funcionando) · sugerir descarga del paquete de voz offline · `cantidad: "todas"`.
 
 **P2**: script de evaluación del LLM vs parser · tipografías de marca · animaciones.
 
@@ -112,7 +112,7 @@ Paleta de fielddata.ag: marca `#347F61`, texto `#203046`, fondo de tarjeta `#EFF
 ### 6.1 Capas
 
 ```
-app/                  Expo Router: _layout, index (pantalla única)
+App.tsx               pantalla única (sin Expo Router: una sola pantalla no lo justifica)
 src/domain/           tipos, categorías y sinónimos, proyección de stock, fechas. TS puro.
 src/data/             seed.json, db.ts (SQLite, migración, siembra), eventStore.ts
 src/tools/            contrato: esquemas zod + handlers (validan, escriben, devuelven ToolResult)
@@ -139,7 +139,7 @@ Los argumentos son parciales a nivel intent. Cada handler devuelve:
 ```ts
 type ToolResult =
   | { status: 'ok'; card: Card; speech: string }           // speech = plantilla local
-  | { status: 'needs_info'; missing: Slot[]; partial: Intent; question: string }
+  | { status: 'needs_info'; missing: Slot; partial: Intent; question: string; card: Card } // un dato por vez
   | { status: 'rejected'; reason: string; card: Card; speech: string };
 ```
 
@@ -229,7 +229,7 @@ Stock actual = stock inicial + movimientos no anulados. Deshacer agrega un event
 | Error del usuario | deshacer por botón o voz |
 | Sin voz TTS en español | subtítulos y tarjeta muestran todo |
 | App a segundo plano escuchando | corta STT, vuelve a inactivo |
-| Toques durante "Pensando" | solo se permite cancelar |
+| Toques durante "Pensando" | se ignoran: cancelar a mitad de turno podría dejar escrito un evento que la UI descartó; el turno está acotado por los timeouts (≤ 6.5 s) |
 
 ## 9. Testing
 
