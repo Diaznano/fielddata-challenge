@@ -12,6 +12,8 @@ describe('categorías', () => {
   it('devuelve null para palabras que no son categorías', () => {
     expect(categoryFromWord('perros')).toBeNull();
     expect(categoryFromWord('lote')).toBeNull();
+    expect(categoryFromWord('constructor')).toBeNull();
+    expect(categoryFromWord('__proto__')).toBeNull();
   });
 
   it('usa singular solo para 1', () => {
