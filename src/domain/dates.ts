@@ -14,6 +14,10 @@ function fromISODate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
+export function isValidISODate(iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) && toISODate(fromISODate(iso)) === iso;
+}
+
 export function addDays(iso: string, n: number): string {
   const d = fromISODate(iso);
   d.setDate(d.getDate() + n);
@@ -70,6 +74,12 @@ export function periodRange(period: RainPeriod, today: string, days = 7): DateRa
     case 'ultimos_dias':
       return { from: addDays(today, -(days - 1)), to: today, label: `en los últimos ${days} días` };
   }
+}
+
+export function monthRangeOf(iso: string, today: string): DateRange {
+  const d = fromISODate(iso);
+  const last = toISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  return { from: toISODate(new Date(d.getFullYear(), d.getMonth(), 1)), to: last < today ? last : today, label: `en ${MONTHS[d.getMonth()]}` };
 }
 
 export type RelativeDayWord = 'hoy' | 'anoche' | 'ayer' | 'anteayer';

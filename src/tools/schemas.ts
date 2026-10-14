@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { RAIN_PERIODS } from '@/domain/dates';
+import { isValidISODate, RAIN_PERIODS } from '@/domain/dates';
 import { CATEGORIES } from '@/domain/types';
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const isoDate = z.string().refine(isValidISODate);
 
 export const toolSchemas = {
   registrar_lluvia: z.object({
@@ -41,7 +41,7 @@ export const toolDescriptions: Record<ToolName, string> = {
 };
 
 export function parseIntent(tool: string, args: unknown): Intent | null {
-  if (!(tool in toolSchemas)) return null;
+  if (!Object.prototype.hasOwnProperty.call(toolSchemas, tool)) return null;
   const parsed = toolSchemas[tool as ToolName].safeParse(args);
   return parsed.success ? ({ tool, args: parsed.data } as Intent) : null;
 }

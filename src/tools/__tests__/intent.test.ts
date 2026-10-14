@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { cleanArgs, mergeIntent, withArgs } from '../intent';
 import { parseIntent, toolSchemas } from '../schemas';
 
@@ -10,6 +11,20 @@ describe('intents', () => {
     expect(parseIntent('mover_animales', { categoria: 'perros' })).toBeNull();
     expect(parseIntent('borrar_todo', {})).toBeNull();
     expect(parseIntent('registrar_lluvia', { mm: -3 })).toBeNull();
+  });
+
+  it('rechaza fechas que no existen en el calendario', () => {
+    expect(parseIntent('registrar_lluvia', { mm: 5, fecha: '2026-09-31' })).toBeNull();
+    expect(parseIntent('registrar_lluvia', { mm: 5, fecha: '2026-10-12' })).not.toBeNull();
+  });
+
+  it('no confunde propiedades heredadas con herramientas', () => {
+    expect(parseIntent('toString', {})).toBeNull();
+    expect(parseIntent('__proto__', {})).toBeNull();
+  });
+
+  it('los schemas se pueden convertir a JSON Schema', () => {
+    expect(() => z.toJSONSchema(toolSchemas.registrar_lluvia)).not.toThrow();
   });
 
   it('acepta cantidad "todas"', () => {

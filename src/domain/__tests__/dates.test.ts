@@ -1,4 +1,4 @@
-import { addDays, describeDay, formatLongDate, formatShortDate, periodRange, resolveRelativeDay, toISODate } from '../dates';
+import { addDays, describeDay, formatLongDate, formatShortDate, isValidISODate, monthRangeOf, periodRange, resolveRelativeDay, toISODate } from '../dates';
 
 describe('fechas', () => {
   it('formatea fechas locales como YYYY-MM-DD', () => {
@@ -41,5 +41,19 @@ describe('fechas', () => {
     expect(describeDay('2026-10-02', '2026-10-13')).toBe('el 2/10');
     expect(formatLongDate('2026-10-13')).toBe('martes 13 de octubre');
     expect(formatShortDate('2026-01-05')).toBe('5/1');
+  });
+
+  it('valida fechas de calendario reales', () => {
+    expect(isValidISODate('2026-10-13')).toBe(true);
+    expect(isValidISODate('2028-02-29')).toBe(true);
+    for (const bad of ['2026-09-31', '2026-02-30', '2025-13-01', '2026-10-00', '2026-1-05', 'ayer']) {
+      expect(isValidISODate(bad)).toBe(false);
+    }
+  });
+
+  it('rango del mes de una fecha, acotado a hoy', () => {
+    expect(monthRangeOf('2026-10-31', '2026-11-01')).toEqual({ from: '2026-10-01', to: '2026-10-31', label: 'en octubre' });
+    expect(monthRangeOf('2026-10-02', '2026-10-13')).toEqual({ from: '2026-10-01', to: '2026-10-13', label: 'en octubre' });
+    expect(monthRangeOf('2028-02-10', '2028-03-05')).toEqual({ from: '2028-02-01', to: '2028-02-29', label: 'en febrero' });
   });
 });

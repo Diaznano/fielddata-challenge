@@ -1,4 +1,4 @@
-import { describeDay, formatShortDate, monthName, periodRange } from '@/domain/dates';
+import { describeDay, formatShortDate, monthName, monthRangeOf, periodRange } from '@/domain/dates';
 import { rainInRange } from '@/domain/rain';
 import { RainEvent } from '@/domain/types';
 import { Card } from './cards';
@@ -34,9 +34,9 @@ export function registrarLluvia(args: RainArgs, ctx: ToolContext): ToolResult {
   }
 
   const event: RainEvent = { id: ctx.newId(), type: 'lluvia', occurredOn: fecha, ...eventOrigin(ctx), payload: { mm: args.mm } };
-  const month = rainInRange([...ctx.events, event], periodRange('mes', ctx.today));
+  const month = rainInRange([...ctx.events, event], monthRangeOf(fecha, ctx.today));
   const day = describeDay(fecha, ctx.today);
-  const mes = monthName(ctx.today);
+  const mes = monthName(fecha);
   return {
     status: 'ok',
     newEvents: [event],
@@ -53,7 +53,7 @@ export function registrarLluvia(args: RainArgs, ctx: ToolContext): ToolResult {
 }
 
 export function consultarLluvia(args: ToolArgs<'consultar_lluvia'>, ctx: ToolContext): ToolResult {
-  const range = periodRange(args.periodo ?? 'mes', ctx.today, args.dias ?? 7);
+  const range = periodRange(args.periodo ?? (args.dias ? 'ultimos_dias' : 'mes'), ctx.today, args.dias ?? 7);
   const { totalMm, items } = rainInRange(ctx.events, range);
   const speech =
     items.length === 0

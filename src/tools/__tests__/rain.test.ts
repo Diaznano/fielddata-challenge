@@ -35,6 +35,18 @@ describe('registrar_lluvia', () => {
     expect(registrarLluvia({ mm: 200, confirmado: true }, makeCtx()).status).toBe('ok');
   });
 
+  it('150 mm exactos se registran sin pedir confirmación', () => {
+    expect(registrarLluvia({ mm: 150 }, makeCtx()).status).toBe('ok');
+  });
+
+  it('el acumulado es el del mes de la lluvia, no el de hoy', () => {
+    const r = registrarLluvia({ mm: 18, fecha: '2026-10-31' }, { ...makeCtx(), today: '2026-11-01' });
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    expect(r.speech).toBe('Anotado: 18 milímetros ayer. En octubre van 18.');
+    expect(r.card.lines[1]).toBe('Acumulado de octubre: 18 mm');
+  });
+
   it('rechaza fechas futuras sin escribir', () => {
     expect(registrarLluvia({ mm: 10, fecha: '2026-10-14' }, makeCtx())).toMatchObject({ status: 'rejected', speech: 'Esa fecha todavía no llegó. No registré nada.' });
   });
@@ -50,6 +62,11 @@ describe('consultar_lluvia', () => {
     expect(r.speech).toBe('En octubre llovieron 24 milímetros, en 2 lluvias.');
     expect(r.card).toMatchObject({ tone: 'consulta', title: 'Lluvia en octubre', headline: '24 mm', lines: ['12/10 · 18 mm', '2/10 · 6 mm'] });
     expect(r.newEvents).toEqual([]);
+  });
+
+  it('dias sin periodo consulta los últimos N días', () => {
+    const r = consultarLluvia({ dias: 2 }, makeCtx(events));
+    expect(r.status === 'ok' && r.speech).toBe('En los últimos 2 días llovieron 18 milímetros.');
   });
 
   it('un solo día no menciona cantidad de lluvias', () => {
