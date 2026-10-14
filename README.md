@@ -4,11 +4,11 @@ Asistente de campo por voz para Android. El productor habla en español rioplate
 
 Funciona **con y sin señal**: con red interpreta con un LLM (OpenAI) y sin red con un parser local. Las dos vías ejecutan las mismas herramientas sobre una base SQLite en el teléfono.
 
-Decisiones, trade-offs y uso de IA: [DECISIONS.md](DECISIONS.md).
+Decisiones, trade-offs y uso de IA: [DECISIONS.md](DECISIONS.md). Manual de uso: [docs/manual-usuario.pdf](docs/manual-usuario.pdf). Video explicativo (90 s): en el [Release](../../releases).
 
 ## Instalar el APK
 
-Descargar `la-tranquera-v1.0.0-arm64.apk` del último [Release](../../releases) e instalarlo en un Android 11+ arm64 (permitir "instalar apps desconocidas"). Al abrirla, aceptar el permiso de micrófono.
+Descargar `la-tranquera-v1.0.0-arm64.apk` del último [Release](../../releases) e instalarlo en un Android 11+ arm64 (permitir "instalar apps desconocidas"; si Play Protect ofrece enviar la app a Google para analizarla, se puede elegir "No enviar"). La primera vez que se toca el micrófono, aceptar el permiso.
 
 El APK está firmado con la debug keystore y trae una key de OpenAI dedicada de vida corta. Cuando vence, la app sigue funcionando con el parser local (el badge pasa a `LOCAL`).
 
