@@ -64,6 +64,10 @@ describe('parseLocal: respuestas a repreguntas', () => {
       ['no, fueron dieciocho', 18],
       ['sí, son 12,5', 12.5],
       ['no, eran quinientos', 500],
+      ['no, 18 milímetros', 18],
+      ['sí, llovieron 20', 20],
+      ['no, cayeron 15 mm', 15],
+      ['sí, pero 20', 20],
     ])('"%s" corrige a %s mm sin confirmar el valor nuevo', (text, mm) => {
       expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual(corrected(mm));
     });
@@ -79,6 +83,13 @@ describe('parseLocal: respuestas a repreguntas', () => {
     it('un número que mide otra cosa no corrige los milímetros', () => {
       expect(parseLocal('sí, hace dos días', pending, FIXTURE_TODAY)).toEqual(confirmed);
     });
+
+    it.each(['sí, llovió dos veces', 'sí, el 12 de octubre', 'sí, en el lote 3', 'sí, a las 5'])(
+      '"%s" nombra otra cosa que los milímetros y confirma el valor preguntado',
+      (text) => {
+        expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual(confirmed);
+      },
+    );
   });
 
   it.each(['cancelá', 'olvidate', 'no'])('"%s" cancela el pendiente', (text) => {

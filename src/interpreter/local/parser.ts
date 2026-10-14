@@ -31,16 +31,20 @@ const MEASURE_UNITS = new Set([
   'dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'semana', 'semanas', 'mes', 'meses', 'ano', 'anos',
   'diente', 'dientes', 'kilo', 'kilos', 'kilogramo', 'kilogramos', 'kg',
 ]);
+const TIMES_WORDS = new Set(['vez', 'veces']);
 const NEXT_WORDS = new Set(['proximo', 'proxima']);
 const WEEKDAYS = new Map([['domingo', 0], ['lunes', 1], ['martes', 2], ['miercoles', 3], ['jueves', 4], ['viernes', 5], ['sabado', 6]]);
 const ANSWER_FILLERS = new Set([
   'del', 'de', 'desde', 'al', 'a', 'el', 'la', 'las', 'los', 'lote', 'potrero',
   'son', 'eran', 'fueron', 'unos', 'unas', 'como', 'y', 'todas', 'todos', 'si',
 ]);
+const COPULAS = new Set(['eran', 'fueron', 'son', 'era', 'fue']);
+const COPULA_FILLERS = new Set(['como', 'unos', 'unas']);
 const UNDO = /\b(borra|borrar|borralo|deshace|deshacer|deshacelo|anula|anular|anulalo|me equivoque)\b/;
 const CANCEL = /\b(cancela|cancelar|cancelalo|olvidate|dejalo|no importa)\b/;
 const AFFIRM = /^(si|dale|correcto|confirmo|exacto|asi es)\b/;
 const NEGATION = /^no\b/;
+const REPLY_LEAD = /^(si|dale|correcto|confirmo|exacto|asi es|no)( pero)?$/;
 
 // "de una" es "enseguida", no el lote uno ni una cantidad.
 function withoutDeUna(tokens: string[]): string[] {
@@ -75,11 +79,30 @@ export function parseLocal(text: string, pending: PendingInfo | null, today: str
 }
 
 // "sí, pero eran 20" o "no, 18" a "¿Seguro que fueron 200?": un número distinto del preguntado es una corrección, no una confirmación.
+// Solo cuenta si se lee como los milímetros (suelto, con unidad, tras el verbo de lluvia o tras "eran"): "sí, el 12 de octubre" o "sí, llovió dos veces" confirman.
 function correctedMm(tokens: string[], pending: PendingInfo): number | undefined {
   if (pending.intent.tool !== 'registrar_lluvia') return undefined;
   const asked = pending.intent.args.mm;
-  const values = findNumbers(tokens).filter((n) => isMmCandidate(tokens, n)).map((n) => n.value);
+  const afterRainVerb = numbersAfterRainVerb(tokens);
+  const values = findNumbers(tokens)
+    .filter(
+      (n) =>
+        isMmCandidate(tokens, n) &&
+        !TIMES_WORDS.has(tokens[n.end]) &&
+        (isWholeReply(tokens, n) || isMmUnit(tokens[n.end]) || afterRainVerb.some((m) => m.start === n.start) || followsCopula(tokens, n)),
+    )
+    .map((n) => n.value);
   return values.some((v) => v === asked) ? undefined : values[0];
+}
+
+function isWholeReply(tokens: string[], n: NumberMatch): boolean {
+  return n.end === tokens.length && REPLY_LEAD.test(tokens.slice(0, n.start).join(' '));
+}
+
+function followsCopula(tokens: string[], n: NumberMatch): boolean {
+  let i = n.start - 1;
+  for (let skipped = 0; skipped < 2 && COPULA_FILLERS.has(tokens[i]); skipped++) i--;
+  return COPULAS.has(tokens[i]);
 }
 
 function parseFresh(tokens: string[], today: string): Intent | null {
@@ -268,15 +291,20 @@ function findMm(tokens: string[]): number | undefined {
   if (beforeUnit) return beforeUnit.value;
 
   // parseLots toma "de treinta" por un lote en "lluvia de treinta milímetros": el filtro de lotes solo corre sin unidad.
+  return numbersAfterRainVerb(tokens)[0]?.value;
+}
+
+function numbersAfterRainVerb(tokens: string[]): NumberMatch[] {
   const { lotTokens } = parseLots(tokens);
+  const found: NumberMatch[] = [];
   for (let v = 0; v < tokens.length; v++) {
     if (!RAIN_VERBS.has(tokens[v])) continue;
     let j = v + 1;
     for (let skipped = 0; skipped < 2 && RAIN_FILLERS.has(tokens[j]); skipped++) j++;
     const n = readNumberAt(tokens, j);
-    if (n && isMmCandidate(tokens, n) && !lotTokens.has(n.start)) return n.value;
+    if (n && isMmCandidate(tokens, n) && !lotTokens.has(n.start)) found.push(n);
   }
-  return undefined;
+  return found;
 }
 
 function parseRainPeriod(tokens: string[]): ToolArgs<'consultar_lluvia'> {
