@@ -12,7 +12,7 @@ const ICONS = {
   blocked: 'microphone-off',
 } as const;
 
-export function MicButton({ status, onPress }: { status: MicStatus; onPress: () => void }) {
+export function MicButton({ status, compact, onPress }: { status: MicStatus; compact: boolean; onPress: () => void }) {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -32,12 +32,12 @@ export function MicButton({ status, onPress }: { status: MicStatus; onPress: () 
 
   const copy = MIC_COPY[status];
   return (
-    <Pressable onPress={onPress} disabled={status === 'thinking'} accessibilityRole="button" accessibilityLabel={copy.label} style={styles.wrap}>
-      <Animated.View style={[styles.button, { backgroundColor: micColor[status], opacity: pulse }]}>
+    <Pressable onPress={onPress} disabled={status === 'thinking'} accessibilityRole="button" accessibilityLabel={copy.label} style={compact ? styles.wrapCompact : styles.wrap}>
+      <Animated.View style={[styles.button, compact && styles.buttonCompact, { backgroundColor: micColor[status], opacity: pulse }]}>
         {status === 'thinking' ? (
           <ActivityIndicator color={colors.white} size="large" />
         ) : (
-          <MaterialCommunityIcons name={ICONS[status]} size={72} color={colors.white} />
+          <MaterialCommunityIcons name={ICONS[status]} size={compact ? 56 : 72} color={colors.white} />
         )}
         <Text style={styles.label}>{copy.label}</Text>
         <Text style={styles.hint}>{copy.hint}</Text>
@@ -48,7 +48,9 @@ export function MicButton({ status, onPress }: { status: MicStatus; onPress: () 
 
 const styles = StyleSheet.create({
   wrap: { height: '30%', minHeight: 200, flexShrink: 0, padding: 12 },
+  wrapCompact: { height: '24%', minHeight: 150, flexShrink: 0, padding: 8 },
   button: { flex: 1, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  buttonCompact: { gap: 2 },
   label: { fontSize: fontSize.title, fontWeight: '900', color: colors.white },
   hint: { fontSize: fontSize.body, color: colors.white },
 });
