@@ -16,6 +16,6 @@ Alternativas probadas con la misma llamada de prueba ("pasé 40 vaquillonas del 
 
 La key de la demo solo lista `gpt-3.5-turbo` y `gpt-4o-mini`, así que los modelos nano más nuevos no estaban disponibles. De los dos disponibles, `gpt-4o-mini` es más rápido y tiene mejor tool calling. Con el prompt y las 6 herramientas reales la latencia medida fue de 0,7 a 1,8 s por turno.
 
-Tiempos máximos en la app: 4 s para interpretar y 2,5 s para redactar la respuesta. Si falla o se pasa la interpretación, el turno sigue con el parser local y el badge muestra "SEÑAL DÉBIL". Si falla la redacción, se usa la plantilla de siempre y el badge no cambia. Los rechazos (por ejemplo, mover más animales de los que hay) nunca se redactan con el LLM: siempre dicen la plantilla "No registré nada".
+Tiempos máximos en la app: 4 s para interpretar y 2,5 s para redactar la respuesta. Si falla o se pasa la interpretación, el turno sigue con el parser local y el badge muestra "SEÑAL DÉBIL". Si falla la redacción, se usa la plantilla de siempre y el badge no cambia. Los rechazos (por ejemplo, mover más animales de los que hay) usan siempre el texto de plantilla (nunca redactado por el LLM).
 
 Si la API contesta 401 o 403 (key vencida o sin acceso), la app deja de llamar al LLM por el resto de la sesión y pasa a interpretar con el parser local.

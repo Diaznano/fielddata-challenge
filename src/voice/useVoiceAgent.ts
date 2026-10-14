@@ -146,9 +146,9 @@ export function useVoiceAgent({ store, farm, interpret, phrase }: AgentOptions) 
   function apply(outcome: TurnOutcome, source: EventSource, interpreted = true) {
     conversation.current = outcome.state;
     setCard(outcome.card);
-    if (interpreted) {
+    if (interpreted && online) {
       setLastDegraded(outcome.degraded);
-      setLastVia((previous) => (online ? outcome.via : previous));
+      setLastVia(outcome.via);
     }
     setVersion((v) => v + 1);
     feedback(outcome.card.tone);

@@ -90,9 +90,10 @@ async function phraseOrNull(phrase: NonNullable<TurnDeps['phrase']>, userText: s
   }
 }
 
-// El LLM puede mandar confirmado:true en cualquier turno; solo vale como respuesta a la pregunta de confirmación vigente.
+// El LLM puede mandar confirmado:true en cualquier turno; solo vale como respuesta a la confirmación vigente y para el mismo valor que se preguntó.
 function withoutUnaskedConfirmation(intent: Intent, pending: Pending | null): Intent {
-  if (intent.tool !== 'registrar_lluvia' || !intent.args.confirmado || pending?.missing === 'confirmacion') return intent;
+  if (intent.tool !== 'registrar_lluvia' || !intent.args.confirmado) return intent;
+  if (pending?.missing === 'confirmacion' && pending.intent.tool === 'registrar_lluvia' && pending.intent.args.mm === intent.args.mm) return intent;
   const { confirmado: _confirmado, ...args } = intent.args;
   return { tool: intent.tool, args };
 }

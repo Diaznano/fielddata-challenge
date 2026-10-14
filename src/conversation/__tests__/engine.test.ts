@@ -207,6 +207,18 @@ describe('runTurn', () => {
       expect(await store.list()).toEqual([expect.objectContaining({ type: 'lluvia', payload: { mm: 300 } })]);
     });
 
+    it('la confirmación solo vale para el mismo valor preguntado: con otro valor vuelve a preguntar', async () => {
+      let args: object = { mm: 300 };
+      const { store, deps } = setup(iaLluvia(() => args));
+      const first = await runTurn('cayeron trescientos', 'voz', initialConversation, deps);
+      expect(first.state.pending?.missing).toBe('confirmacion');
+      args = { mm: 500, confirmado: true };
+      const second = await runTurn('no, fueron quinientos', 'voz', first.state, deps);
+      expect(second.speech).toBe('¿Seguro que fueron 500 milímetros?');
+      expect(second.state.pending).toMatchObject({ missing: 'confirmacion', intent: { args: { mm: 500 } } });
+      expect(await store.list()).toEqual([]);
+    });
+
     it('una confirmación vencida no sirve: pide confirmar de nuevo', async () => {
       let args: object = { mm: 300 };
       const { store, deps, advance } = setup(iaLluvia(() => args));
