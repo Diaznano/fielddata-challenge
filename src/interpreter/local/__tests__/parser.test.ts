@@ -80,6 +80,24 @@ describe('parseLocal: respuestas a repreguntas', () => {
     });
   });
 
+  it.each(['al 5 de una', 'el lote 5 de una'])('"%s" completa el destino sin tomar "de una" por un lote', (text) => {
+    const pending: PendingInfo = { intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3 } }, missing: 'lote_destino' };
+    expect(parseLocal(text, pending, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
+    });
+  });
+
+  it('"el 3 de una" completa el origen', () => {
+    expect(parseLocal('el 3 de una', movePending, FIXTURE_TODAY)).toEqual(completedMove);
+  });
+
+  it('"una" no es un lote ni responde los milímetros cuando es "de una"', () => {
+    const mmPending: PendingInfo = { intent: { tool: 'registrar_lluvia', args: { fecha: '2026-10-12' } }, missing: 'mm' };
+    expect(parseLocal('lote una', movePending, FIXTURE_TODAY)).toEqual({ kind: 'unknown' });
+    expect(parseLocal('de una', mmPending, FIXTURE_TODAY)).toEqual({ kind: 'unknown' });
+  });
+
   it('"del lote uno al dos" completa origen y destino', () => {
     const pending: PendingInfo = { intent: { tool: 'mover_animales', args: { cantidad: 40, categoria: 'vaquillonas' } }, missing: 'lote_origen' };
     expect(parseLocal('del lote uno al dos', pending, FIXTURE_TODAY)).toEqual({
@@ -156,6 +174,24 @@ describe('parseLocal: números que no son milímetros ni cantidades', () => {
       intent: { tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
     });
   });
+
+  it.each(['A eso de las 5 pasamos vacas del 1 al 2', 'Tipo las 5 pasamos vacas del 1 al 2', 'Pasamos vacas del 1 al 2 después de las 5'])('"%s": la hora no es la cantidad', (text) => {
+    expect(parseLocal(text, null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vacas', lote_origen: 1, lote_destino: 2 } },
+    });
+  });
+
+  it('las semanas y los kilogramos no son la cantidad', () => {
+    expect(parseLocal('Pasé vaquillonas de 2 semanas del 3 al 5', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
+    });
+    expect(parseLocal('Pasé vaquillonas de 200 kilogramos del 3 al 5', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'mover_animales', args: { categoria: 'vaquillonas', lote_origen: 3, lote_destino: 5 } },
+    });
+  });
 });
 
 describe('parseLocal: partes del día y días de la semana', () => {
@@ -177,6 +213,22 @@ describe('parseLocal: partes del día y días de la semana', () => {
     expect(parseLocal('El lunes llovieron 12 mm', null, FIXTURE_TODAY)).toEqual({
       kind: 'intent',
       intent: { tool: 'registrar_lluvia', args: { mm: 12, fecha: '2026-10-12' } },
+    });
+  });
+});
+
+describe('parseLocal: mañana', () => {
+  it('"de mañana" a secas es el día siguiente', () => {
+    expect(parseLocal('Llovieron 10 mm de mañana', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'registrar_lluvia', args: { mm: 10, fecha: '2026-10-14' } },
+    });
+  });
+
+  it('"de mañanita" es hoy', () => {
+    expect(parseLocal('Llovieron 10 mm de mañanita', null, FIXTURE_TODAY)).toEqual({
+      kind: 'intent',
+      intent: { tool: 'registrar_lluvia', args: { mm: 10, fecha: '2026-10-13' } },
     });
   });
 });

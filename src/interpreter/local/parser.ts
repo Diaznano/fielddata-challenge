@@ -27,7 +27,11 @@ const FROM_WORDS = new Set(['del', 'de', 'desde']);
 const TO_WORDS = new Set(['al', 'a', 'hacia', 'para']);
 const LOT_WORDS = new Set(['lote', 'potrero']);
 const ALL_WORDS = new Set(['todas', 'todos']);
-const MEASURE_UNITS = new Set(['dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'ano', 'anos', 'mes', 'meses', 'kilo', 'kilos', 'kg']);
+const MEASURE_UNITS = new Set([
+  'dia', 'dias', 'hora', 'horas', 'minuto', 'minutos', 'semana', 'semanas', 'mes', 'meses', 'ano', 'anos',
+  'diente', 'dientes', 'kilo', 'kilos', 'kilogramo', 'kilogramos', 'kg',
+]);
+const NEXT_WORDS = new Set(['proximo', 'proxima']);
 const WEEKDAYS = new Map([['domingo', 0], ['lunes', 1], ['martes', 2], ['miercoles', 3], ['jueves', 4], ['viernes', 5], ['sabado', 6]]);
 const ANSWER_FILLERS = new Set([
   'del', 'de', 'desde', 'al', 'a', 'el', 'la', 'las', 'los', 'lote', 'potrero',
@@ -37,8 +41,13 @@ const UNDO = /\b(borra|borrar|borralo|deshace|deshacer|deshacelo|anula|anular|an
 const CANCEL = /\b(cancela|cancelar|cancelalo|olvidate|dejalo|no importa)\b/;
 const AFFIRM = /^(si|dale|correcto|confirmo|exacto|asi es)\b/;
 
+// "de una" es "enseguida", no el lote uno ni una cantidad.
+function withoutDeUna(tokens: string[]): string[] {
+  return tokens.filter((t, i) => !(t === 'de' && tokens[i + 1] === 'una') && !(t === 'una' && tokens[i - 1] === 'de'));
+}
+
 export function parseLocal(text: string, pending: PendingInfo | null, today: string): LocalParse {
-  const tokens = tokenize(text);
+  const tokens = withoutDeUna(tokenize(text));
   if (tokens.length === 0) return { kind: 'unknown' };
   const sentence = tokens.join(' ');
 
@@ -113,17 +122,22 @@ function findRelativeDay(tokens: string[], today: string): string | undefined {
   if (daysAgo !== null) return addDays(today, -daysAgo);
   const weekdayDate = findWeekdayDate(tokens, today);
   if (weekdayDate) return weekdayDate;
+  if (tokens.includes('mananita')) return today;
   const tomorrow = tokens.indexOf('manana');
-  // "esta mañana", "a la mañana", "de mañana" y "a media mañana" son la parte del día de hoy; "mañana" a secas es el día siguiente (la herramienta lo rechaza).
-  if (tomorrow >= 0) return ['esta', 'la', 'de', 'media'].includes(tokens[tomorrow - 1]) ? today : addDays(today, 1);
+  // "mañana" a secas y "de mañana" son el día siguiente (la herramienta lo rechaza); solo las partes del día de hoy llevan fecha de hoy.
+  if (tomorrow >= 0) return isMorningOfToday(tokens, tomorrow) ? today : addDays(today, 1);
   return undefined;
+}
+
+function isMorningOfToday(tokens: string[], i: number): boolean {
+  return ['esta', 'la', 'media'].includes(tokens[i - 1]) || (tokens[i - 1] === 'de' && tokens[i + 1] === 'temprano');
 }
 
 function findWeekdayDate(tokens: string[], today: string): string | undefined {
   for (let i = 0; i < tokens.length; i++) {
     const weekday = WEEKDAYS.get(tokens[i]);
     if (weekday === undefined) continue;
-    const upcoming = tokens[i - 1] === 'proximo' || tokens[i - 1] === 'proxima' || (tokens[i + 1] === 'que' && tokens[i + 2] === 'viene');
+    const upcoming = NEXT_WORDS.has(tokens[i - 1]) || NEXT_WORDS.has(tokens[i + 1]) || (tokens[i + 1] === 'que' && tokens[i + 2] === 'viene');
     return upcoming ? nextWeekday(weekday, today) : lastWeekday(weekday, today);
   }
   return undefined;
@@ -134,13 +148,26 @@ function isMeasured(tokens: string[], n: NumberMatch): boolean {
   return MEASURE_UNITS.has(tokens[n.end]);
 }
 
-// En una lluvia, "las 5" es una hora; en un movimiento "las 40 vaquillonas" es la cantidad y solo "a las N" es una hora.
-function isMmCandidate(tokens: string[], n: NumberMatch): boolean {
-  return !isMeasured(tokens, n) && tokens[n.start - 1] !== 'las';
+// "las 5" es una hora ("a las 5", "tipo las 5", "después de las 5"); solo el número pegado a la categoría ("las 40 vaquillonas") es una cantidad.
+function isAfterLas(tokens: string[], n: NumberMatch): boolean {
+  return tokens[n.start - 1] === 'las';
 }
 
-function isClockTime(tokens: string[], n: NumberMatch): boolean {
-  return tokens[n.start - 1] === 'las' && tokens[n.start - 2] === 'a';
+function isMmCandidate(tokens: string[], n: NumberMatch): boolean {
+  return !isMeasured(tokens, n) && !isAfterLas(tokens, n);
+}
+
+// Lote y potrero son masculinos: "una" no nombra un lote ("lote una" no existe), solo "uno" y "un".
+function readLotNumberAt(tokens: string[], i: number): NumberMatch | null {
+  return tokens[i] === 'una' ? null : readNumberAt(tokens, i, { allowArticles: true });
+}
+
+function firstLotNumber(tokens: string[]): number | undefined {
+  for (let i = 0; i < tokens.length; i++) {
+    const n = readLotNumberAt(tokens, i);
+    if (n) return n.value;
+  }
+  return undefined;
 }
 
 // El artículo y "lote" son opcionales porque por voz se dice "del 3 al 5" igual que "del lote 3 al lote 5".
@@ -148,14 +175,14 @@ function lotAfter(tokens: string[], i: number): { value: number; end: number } |
   let j = i + 1;
   if (tokens[j] === 'el' || tokens[j] === 'la') j++;
   if (LOT_WORDS.has(tokens[j])) j++;
-  const n = readNumberAt(tokens, j, { allowArticles: true });
+  const n = readLotNumberAt(tokens, j);
   return n ? { value: n.value, end: n.end } : null;
 }
 
 function findLotRef(tokens: string[]): number | undefined {
   for (let i = 0; i < tokens.length; i++) {
     if (LOT_WORDS.has(tokens[i])) {
-      const n = readNumberAt(tokens, i + 1, { allowArticles: true });
+      const n = readLotNumberAt(tokens, i + 1);
       if (n) return n.value;
     }
     if (tokens[i] === 'en' || tokens[i] === 'del') {
@@ -189,7 +216,7 @@ function parseLots(tokens: string[]): { origin?: number; dest?: number; lotToken
   }
   tokens.forEach((t, i) => {
     if (!LOT_WORDS.has(t) || lotTokens.has(i)) return;
-    const n = readNumberAt(tokens, i + 1, { allowArticles: true });
+    const n = readLotNumberAt(tokens, i + 1);
     if (!n) return;
     if (origin === undefined) origin = n.value;
     else if (dest === undefined && n.value !== origin) dest = n.value;
@@ -203,7 +230,7 @@ function parseMove(tokens: string[], today: string): ToolArgs<'mover_animales'> 
   const category = findCategory(tokens);
   const numbers = findNumbers(tokens).filter((n) => !lotTokens.has(n.start) && Number.isInteger(n.value) && !isMeasured(tokens, n));
   const beforeCategory = category ? numbers.find((n) => n.end === category.index) : undefined;
-  let cantidad: number | 'todas' | undefined = (beforeCategory ?? numbers.find((n) => !isClockTime(tokens, n)))?.value;
+  let cantidad: number | 'todas' | undefined = (beforeCategory ?? numbers.find((n) => !isAfterLas(tokens, n)))?.value;
   const articleBeforeCategory = category !== null && ['los', 'las'].includes(tokens[category.index - 1]);
   if (cantidad === undefined && (tokens.some((t) => ALL_WORDS.has(t)) || articleBeforeCategory)) cantidad = 'todas';
   return cleanArgs({
@@ -283,7 +310,7 @@ function fillSlot(tokens: string[], pending: PendingInfo): Intent | null {
       // Sin preposición ("el lote 5", "el 3") parseLots manda el único lote a origen: acá es el slot que faltaba, y no debe pisar el otro.
       const extra = directional && (origin !== undefined || dest !== undefined)
         ? { lote_origen: origin, lote_destino: dest }
-        : { [pending.missing]: origin ?? first };
+        : { [pending.missing]: origin ?? firstLotNumber(tokens) };
       return Object.values(extra).some((v) => v !== undefined) ? withArgs(pending.intent, extra) : null;
     }
     case 'confirmacion':
